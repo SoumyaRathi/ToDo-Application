@@ -236,7 +236,7 @@ app.get('/todos/:id', requireAuth, (req, res) => {
   const todos = readTodos();
   const todo = todos.find((x) => x.id === todoID && x.userId === req.userId);
   if (todo) {
-    res.status(200).json(todo);
+    res.status(200).json(withDefaults(todo));
   } else {
     res.status(404).send({ error: 'Record Not Found!' });
   }
@@ -250,12 +250,22 @@ app.post('/todos', requireAuth, (req, res) => {
   if (due.provided && !due.valid) {
     return res.status(400).json({ error: 'Invalid dueDate. Expected a valid date in YYYY-MM-DD format.', field: 'dueDate' });
   }
+  const priority = parsePriority(req.body.priority);
+  if (priority.provided && !priority.valid) {
+    return res.status(400).json({ error: `Invalid priority. Expected one of: ${PRIORITIES.join(', ')}.`, field: 'priority' });
+  }
+  const tags = parseTags(req.body.tags);
+  if (tags.provided && !tags.valid) {
+    return res.status(400).json({ error: `Invalid tags. Expected an array of up to ${MAX_TAGS} strings, each up to ${MAX_TAG_LENGTH} characters.`, field: 'tags' });
+  }
   const newTodo = {
     id: todos.length > 0 ? todos[todos.length - 1].id + 1 : 1,
     userId: req.userId,
     title,
     description,
     completed: !!completed,
+    priority: priority.value || DEFAULT_PRIORITY,
+    tags: tags.value || [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -278,13 +288,23 @@ app.put('/todos/:id', requireAuth, (req, res) => {
     if (due.provided && !due.valid) {
       return res.status(400).json({ error: 'Invalid dueDate. Expected a valid date in YYYY-MM-DD format.', field: 'dueDate' });
     }
+    const priority = parsePriority(req.body.priority);
+    if (priority.provided && !priority.valid) {
+      return res.status(400).json({ error: `Invalid priority. Expected one of: ${PRIORITIES.join(', ')}.`, field: 'priority' });
+    }
+    const tags = parseTags(req.body.tags);
+    if (tags.provided && !tags.valid) {
+      return res.status(400).json({ error: `Invalid tags. Expected an array of up to ${MAX_TAGS} strings, each up to ${MAX_TAG_LENGTH} characters.`, field: 'tags' });
+    }
     const updatedTodo = {
-      ...todos[todoIndex],
+      ...withDefaults(todos[todoIndex]),
       title,
       description,
       completed: !!completed,
       updatedAt: new Date().toISOString(),
     };
+    if (priority.provided) updatedTodo.priority = priority.value;
+    if (tags.provided) updatedTodo.tags = tags.value;
     if (due.clear) delete updatedTodo.dueDate;
     else if (due.value) updatedTodo.dueDate = due.value;
     if (!validateTodoInput(updatedTodo)) {
@@ -306,7 +326,7 @@ app.patch('/todos/:id/toggle', requireAuth, (req, res) => {
     todos[todoIndex].completed = !todos[todoIndex].completed;
     todos[todoIndex].updatedAt = new Date().toISOString();
     if (!writeTodos(todos, res)) return;
-    res.status(200).json(todos[todoIndex]);
+    res.status(200).json(withDefaults(todos[todoIndex]));
   } else {
     res.status(404).json({ error: 'Record not found...' });
   }
