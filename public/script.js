@@ -67,6 +67,17 @@ function renderTodos(data) {
     const desc = document.createElement('p');
     desc.id = 'desc';
     desc.textContent = element.description;
+    // Due date
+    let dueEl = null;
+    if (element.dueDate) {
+      const [y, m, d] = element.dueDate.split('-').map(Number);
+      dueEl = document.createElement('div');
+      dueEl.className = 'todo-due';
+      dueEl.textContent = `Due: ${new Date(y, m - 1, d).toLocaleDateString()}`;
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      if (element.completed === false && element.dueDate < today) card.classList.add('overdue');
+    }
     // Timestamps
     const timestamps = document.createElement('div');
     timestamps.className = 'todo-timestamp';
@@ -91,7 +102,9 @@ function renderTodos(data) {
     toggleBtn.onclick = () => toggleComplete(element.id);
     actions.append(editBtn, deleteBtn, toggleBtn);
     // Assemble card
-    card.append(badge, title, desc, timestamps, actions);
+    card.append(badge, title, desc);
+    if (dueEl) card.append(dueEl);
+    card.append(timestamps, actions);
     document.querySelector('.outputData').appendChild(card);
   });
   updateFilterSortFeedback();
