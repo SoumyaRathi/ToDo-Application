@@ -28,21 +28,6 @@ function setLoading(loading) {
   }
 }
 
-function fetchAndRenderTodos() {
-  if (!checkAuth()) return;
-  setLoading(true);
-  let url = `${API_BASE}/todos?filter=${currentFilter !== 'all' ? currentFilter : ''}&sort=${currentSort}`;
-  if (currentSearch) url += `&search=${encodeURIComponent(currentSearch)}`;
-  fetchWithAuth(url)
-    .then(resp => {
-      if (resp.status === 401) { clearAuth(); showAuthModal(false); return []; }
-      console.log(resp);
-      return resp.json();
-    })
-    .then(renderTodos)
-    .catch(err => alert(err.message));
-}
-
 function renderTodos(data) {
   setLoading(false);
   currentTodos = data;
@@ -191,11 +176,9 @@ function showAuthButtons() {
   document.querySelector('.outputData').style.display = 'none';
   // Always attach listeners when showing
   loginBtn.onclick = function() {
-    console.log('Login button clicked');
     showAuthModal(false);
   };
   registerBtn.onclick = function() {
-    console.log('Register button clicked');
     showAuthModal(true);
   };
 }
@@ -234,7 +217,7 @@ function fetchWithAuth(url, options = {}) {
   return fetch(url, options);
 }
 
-// --- Update fetchAndRenderTodos to use fetchWithAuth and checkAuth ---
+// --- Fetch and render todos (uses fetchWithAuth and checkAuth) ---
 function fetchAndRenderTodos() {
   if (!checkAuth()) return;
   setLoading(true);
@@ -243,7 +226,6 @@ function fetchAndRenderTodos() {
   fetchWithAuth(url)
     .then(resp => {
       if (resp.status === 401) { clearAuth(); showAuthModal(false); return []; }
-      console.log(resp);
       return resp.json();
     })
     .then(renderTodos)
@@ -253,11 +235,9 @@ function fetchAndRenderTodos() {
 document.addEventListener('DOMContentLoaded', function() {
   // Always set up these listeners first
   document.getElementById('login-btn').onclick = function() {
-    console.log('Login button clicked');
     showAuthModal(false);
   };
   document.getElementById('register-btn').onclick = function() {
-    console.log('Register button clicked');
     showAuthModal(true);
   };
   document.getElementById('add-todo-btn').onclick = openCreateModal;
@@ -314,18 +294,6 @@ document.addEventListener('DOMContentLoaded', function() {
           fetchAndRenderTodos();
         })
         .catch(err => { console.error(err); });
-    }
-  };
-  window.addEventListener('keydown', function(e) {
-    const modal = document.getElementById('edit-modal');
-    if (modal.style.display === 'flex' && e.key === 'Escape') {
-      closeEditModal();
-    }
-  });
-  window.onclick = function(event) {
-    const modal = document.getElementById('edit-modal');
-    if (event.target === modal) {
-      closeEditModal();
     }
   };
   document.getElementById('search-input').oninput = function(e) {
@@ -428,32 +396,20 @@ document.addEventListener('DOMContentLoaded', function() {
         showAuthModal(false);
       });
   };
-  // Close auth modal on outside click
-  window.onclick = function(event) {
-    const modal = document.getElementById('edit-modal');
+  // Close edit/auth modals on outside click or Escape
+  // .modal-overlay covers each modal, so outside clicks land on the overlay rather than the modal itself
+  window.addEventListener('click', function(event) {
+    const isOutside = modal => event.target === modal || (event.target.classList.contains('modal-overlay') && modal.contains(event.target));
+    const editModal = document.getElementById('edit-modal');
     const authModal = document.getElementById('auth-modal');
-    if (event.target === modal) closeEditModal();
-    if (event.target === authModal) closeAuthModal();
-  };
-  window.addEventListener('keydown', function(e) {
-    const modal = document.getElementById('edit-modal');
-    const authModal = document.getElementById('auth-modal');
-    if (modal.style.display === 'flex' && e.key === 'Escape') closeEditModal();
-    if (authModal.style.display === 'flex' && e.key === 'Escape') closeAuthModal();
+    if (isOutside(editModal)) closeEditModal();
+    if (isOutside(authModal)) closeAuthModal();
   });
-  // Add event listeners for closing auth modal
   window.addEventListener('keydown', function(e) {
-    const authModal = document.getElementById('auth-modal');
-    if (authModal.style.display === 'flex' && e.key === 'Escape') {
-      closeAuthModal();
-    }
+    if (e.key !== 'Escape') return;
+    if (document.getElementById('edit-modal').style.display === 'flex') closeEditModal();
+    if (document.getElementById('auth-modal').style.display === 'flex') closeAuthModal();
   });
-  window.onclick = function(event) {
-    const authModal = document.getElementById('auth-modal');
-    if (event.target === authModal) {
-      closeAuthModal();
-    }
-  };
   // Restore user info in header if logged in
   const token = localStorage.getItem('token');
   const name = localStorage.getItem('name');
