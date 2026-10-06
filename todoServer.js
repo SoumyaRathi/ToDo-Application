@@ -100,6 +100,53 @@ function parseDueDate(input) {
   return { provided: true, valid: true, value: input };
 }
 
+const PRIORITIES = ['low', 'medium', 'high'];
+const DEFAULT_PRIORITY = 'medium';
+const MAX_TAGS = 10;
+const MAX_TAG_LENGTH = 30;
+
+// Parses an optional priority. Returns { provided, valid, value }. null/'' resets to the default.
+function parsePriority(input) {
+  if (input === undefined) return { provided: false };
+  if (input === null || input === '') return { provided: true, valid: true, value: DEFAULT_PRIORITY };
+  if (typeof input !== 'string') return { provided: true, valid: false };
+  const value = input.trim().toLowerCase();
+  if (!PRIORITIES.includes(value)) return { provided: true, valid: false };
+  return { provided: true, valid: true, value };
+}
+
+// Parses optional tags (array of strings or comma-separated string). Trims, drops empties,
+// dedupes case-insensitively (first spelling wins). null/''/[] clears. Returns { provided, valid, value }.
+function parseTags(input) {
+  if (input === undefined) return { provided: false };
+  if (input === null || input === '') return { provided: true, valid: true, value: [] };
+  let list = input;
+  if (typeof list === 'string') list = list.split(',');
+  if (!Array.isArray(list) || list.some(t => typeof t !== 'string')) return { provided: true, valid: false };
+  const seen = new Set();
+  const value = [];
+  for (const raw of list) {
+    const tag = raw.trim();
+    if (!tag) continue;
+    if (tag.length > MAX_TAG_LENGTH) return { provided: true, valid: false };
+    const key = tag.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    value.push(tag);
+  }
+  if (value.length > MAX_TAGS) return { provided: true, valid: false };
+  return { provided: true, valid: true, value };
+}
+
+// Fills defaults for legacy todos that were stored without priority/tags.
+function withDefaults(todo) {
+  return {
+    ...todo,
+    priority: PRIORITIES.includes(todo.priority) ? todo.priority : DEFAULT_PRIORITY,
+    tags: Array.isArray(todo.tags) ? todo.tags : [],
+  };
+}
+
 // Signup
 app.post('/signup', (req, res) => {
   const { name, email, password } = req.body;
