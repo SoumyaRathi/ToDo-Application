@@ -4,8 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "nodemon todoServer.js",
-    "preinstall": "node dist/setup.js"
+    "start": "nodemon todoServer.js"
   },
   "keywords": [],
   "author": "",
