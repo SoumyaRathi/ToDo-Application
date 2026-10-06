@@ -104,6 +104,7 @@ function openCreateModal() {
   document.getElementById('save-edit-btn').textContent = 'Add';
   document.getElementById('edit-title').value = '';
   document.getElementById('edit-desc').value = '';
+  document.getElementById('edit-dueDate').value = '';
   document.getElementById('edit-completed').checked = false;
   document.getElementById('completed-checkbox-field').style.display = 'none';
   const modal = document.getElementById('edit-modal');
@@ -119,6 +120,7 @@ function openEditModal(todo) {
   document.getElementById('save-edit-btn').textContent = 'Save';
   document.getElementById('edit-title').value = todo.title;
   document.getElementById('edit-desc').value = todo.description;
+  document.getElementById('edit-dueDate').value = todo.dueDate || '';
   document.getElementById('edit-completed').checked = todo.completed;
   document.getElementById('completed-checkbox-field').style.display = '';
   const modal = document.getElementById('edit-modal');
@@ -255,6 +257,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const title = document.getElementById('edit-title').value;
     const description = document.getElementById('edit-desc').value;
     const completed = document.getElementById('edit-completed').checked;
+    const dueDate = document.getElementById('edit-dueDate').value;
     if (!title || !description) {
       // Optionally show a message in the UI, but do not use alert
       return;
@@ -265,7 +268,7 @@ document.addEventListener('DOMContentLoaded', function() {
       fetchWithAuth(`${API_BASE}/todos/${editingTodoId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, completed })
+        body: JSON.stringify({ title, description, completed, dueDate: dueDate || null })
       })
         .then(async resp => {
           if (!resp.ok) return;
@@ -284,7 +287,7 @@ document.addEventListener('DOMContentLoaded', function() {
       fetchWithAuth(`${API_BASE}/todos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, completed: false })
+        body: JSON.stringify(dueDate ? { title, description, completed: false, dueDate } : { title, description, completed: false })
       })
         .then(async resp => {
           if (!resp.ok) return;
