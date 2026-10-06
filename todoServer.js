@@ -204,8 +204,21 @@ function requireAuth(req, res, next) {
 
 // GET /todos - Retrieve all todo items, with optional search/filter/sort
 app.get('/todos', requireAuth, (req, res) => {
-  let todos = readTodos().filter(t => t.userId === req.userId);
-  const { search, filter, sort } = req.query;
+  const { search, filter, sort, priority, tag } = req.query;
+  let priorityFilter = null;
+  if (priority !== undefined && priority !== '') {
+    const parsed = parsePriority(priority);
+    if (!parsed.valid) {
+      return res.status(400).json({ error: `Invalid priority. Expected one of: ${PRIORITIES.join(', ')}.`, field: 'priority' });
+    }
+    priorityFilter = parsed.value;
+  }
+  let todos = readTodos().filter(t => t.userId === req.userId).map(withDefaults);
+  if (priorityFilter) todos = todos.filter(t => t.priority === priorityFilter);
+  if (typeof tag === 'string' && tag.trim()) {
+    const wanted = tag.trim().toLowerCase();
+    todos = todos.filter(t => t.tags.some(x => x.toLowerCase() === wanted));
+  }
   if (search) {
     const s = search.toLowerCase();
     todos = todos.filter(t => t.title.toLowerCase().includes(s) || t.description.toLowerCase().includes(s));
