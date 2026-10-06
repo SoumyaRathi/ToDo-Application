@@ -100,6 +100,53 @@ function parseDueDate(input) {
   return { provided: true, valid: true, value: input };
 }
 
+const PRIORITIES = ['low', 'medium', 'high'];
+const DEFAULT_PRIORITY = 'medium';
+const MAX_TAGS = 10;
+const MAX_TAG_LENGTH = 30;
+
+// Parses an optional priority. Returns { provided, valid, value }. null/'' resets to the default.
+function parsePriority(input) {
+  if (input === undefined) return { provided: false };
+  if (input === null || input === '') return { provided: true, valid: true, value: DEFAULT_PRIORITY };
+  if (typeof input !== 'string') return { provided: true, valid: false };
+  const value = input.trim().toLowerCase();
+  if (!PRIORITIES.includes(value)) return { provided: true, valid: false };
+  return { provided: true, valid: true, value };
+}
+
+// Parses optional tags (array of strings or comma-separated string). Trims, drops empties,
+// dedupes case-insensitively (first spelling wins). null/''/[] clears. Returns { provided, valid, value }.
+function parseTags(input) {
+  if (input === undefined) return { provided: false };
+  if (input === null || input === '') return { provided: true, valid: true, value: [] };
+  let list = input;
+  if (typeof list === 'string') list = list.split(',');
+  if (!Array.isArray(list) || list.some(t => typeof t !== 'string')) return { provided: true, valid: false };
+  const seen = new Set();
+  const value = [];
+  for (const raw of list) {
+    const tag = raw.trim();
+    if (!tag) continue;
+    if (tag.length > MAX_TAG_LENGTH) return { provided: true, valid: false };
+    const key = tag.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    value.push(tag);
+  }
+  if (value.length > MAX_TAGS) return { provided: true, valid: false };
+  return { provided: true, valid: true, value };
+}
+
+// Fills defaults for legacy todos that were stored without priority/tags.
+function withDefaults(todo) {
+  return {
+    ...todo,
+    priority: PRIORITIES.includes(todo.priority) ? todo.priority : DEFAULT_PRIORITY,
+    tags: Array.isArray(todo.tags) ? todo.tags : [],
+  };
+}
+
 // Signup
 app.post('/signup', (req, res) => {
   const { name, email, password } = req.body;
@@ -157,8 +204,21 @@ function requireAuth(req, res, next) {
 
 // GET /todos - Retrieve all todo items, with optional search/filter/sort
 app.get('/todos', requireAuth, (req, res) => {
-  let todos = readTodos().filter(t => t.userId === req.userId);
-  const { search, filter, sort } = req.query;
+  const { search, filter, sort, priority, tag } = req.query;
+  let priorityFilter = null;
+  if (priority !== undefined && priority !== '') {
+    const parsed = parsePriority(priority);
+    if (!parsed.valid) {
+      return res.status(400).json({ error: `Invalid priority. Expected one of: ${PRIORITIES.join(', ')}.`, field: 'priority' });
+    }
+    priorityFilter = parsed.value;
+  }
+  let todos = readTodos().filter(t => t.userId === req.userId).map(withDefaults);
+  if (priorityFilter) todos = todos.filter(t => t.priority === priorityFilter);
+  if (typeof tag === 'string' && tag.trim()) {
+    const wanted = tag.trim().toLowerCase();
+    todos = todos.filter(t => t.tags.some(x => x.toLowerCase() === wanted));
+  }
   if (search) {
     const s = search.toLowerCase();
     todos = todos.filter(t => t.title.toLowerCase().includes(s) || t.description.toLowerCase().includes(s));
@@ -189,7 +249,7 @@ app.get('/todos/:id', requireAuth, (req, res) => {
   const todos = readTodos();
   const todo = todos.find((x) => x.id === todoID && x.userId === req.userId);
   if (todo) {
-    res.status(200).json(todo);
+    res.status(200).json(withDefaults(todo));
   } else {
     res.status(404).send({ error: 'Record Not Found!' });
   }
@@ -203,12 +263,22 @@ app.post('/todos', requireAuth, (req, res) => {
   if (due.provided && !due.valid) {
     return res.status(400).json({ error: 'Invalid dueDate. Expected a valid date in YYYY-MM-DD format.', field: 'dueDate' });
   }
+  const priority = parsePriority(req.body.priority);
+  if (priority.provided && !priority.valid) {
+    return res.status(400).json({ error: `Invalid priority. Expected one of: ${PRIORITIES.join(', ')}.`, field: 'priority' });
+  }
+  const tags = parseTags(req.body.tags);
+  if (tags.provided && !tags.valid) {
+    return res.status(400).json({ error: `Invalid tags. Expected an array of up to ${MAX_TAGS} strings, each up to ${MAX_TAG_LENGTH} characters.`, field: 'tags' });
+  }
   const newTodo = {
     id: todos.length > 0 ? todos[todos.length - 1].id + 1 : 1,
     userId: req.userId,
     title,
     description,
     completed: !!completed,
+    priority: priority.value || DEFAULT_PRIORITY,
+    tags: tags.value || [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -231,13 +301,23 @@ app.put('/todos/:id', requireAuth, (req, res) => {
     if (due.provided && !due.valid) {
       return res.status(400).json({ error: 'Invalid dueDate. Expected a valid date in YYYY-MM-DD format.', field: 'dueDate' });
     }
+    const priority = parsePriority(req.body.priority);
+    if (priority.provided && !priority.valid) {
+      return res.status(400).json({ error: `Invalid priority. Expected one of: ${PRIORITIES.join(', ')}.`, field: 'priority' });
+    }
+    const tags = parseTags(req.body.tags);
+    if (tags.provided && !tags.valid) {
+      return res.status(400).json({ error: `Invalid tags. Expected an array of up to ${MAX_TAGS} strings, each up to ${MAX_TAG_LENGTH} characters.`, field: 'tags' });
+    }
     const updatedTodo = {
-      ...todos[todoIndex],
+      ...withDefaults(todos[todoIndex]),
       title,
       description,
       completed: !!completed,
       updatedAt: new Date().toISOString(),
     };
+    if (priority.provided) updatedTodo.priority = priority.value;
+    if (tags.provided) updatedTodo.tags = tags.value;
     if (due.clear) delete updatedTodo.dueDate;
     else if (due.value) updatedTodo.dueDate = due.value;
     if (!validateTodoInput(updatedTodo)) {
@@ -259,7 +339,7 @@ app.patch('/todos/:id/toggle', requireAuth, (req, res) => {
     todos[todoIndex].completed = !todos[todoIndex].completed;
     todos[todoIndex].updatedAt = new Date().toISOString();
     if (!writeTodos(todos, res)) return;
-    res.status(200).json(todos[todoIndex]);
+    res.status(200).json(withDefaults(todos[todoIndex]));
   } else {
     res.status(404).json({ error: 'Record not found...' });
   }

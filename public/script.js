@@ -16,6 +16,8 @@ let currentTodos = [];
 let currentFilter = 'all';
 let currentSort = 'createdAt';
 let currentSearch = '';
+let currentPriority = '';
+let currentTag = '';
 let editingTodoId = null;
 let isLoading = false;
 let isEditMode = false;
@@ -67,6 +69,20 @@ function renderTodos(data) {
     const desc = document.createElement('p');
     desc.id = 'desc';
     desc.textContent = element.description;
+    // Priority + tags (legacy todos without these fields fall back to defaults)
+    const priority = ['low', 'medium', 'high'].includes(element.priority) ? element.priority : 'medium';
+    const meta = document.createElement('div');
+    meta.className = 'todo-meta';
+    const priorityBadge = document.createElement('span');
+    priorityBadge.className = 'priority-badge ' + priority;
+    priorityBadge.textContent = priority.charAt(0).toUpperCase() + priority.slice(1);
+    meta.appendChild(priorityBadge);
+    (Array.isArray(element.tags) ? element.tags : []).forEach(tag => {
+      const chip = document.createElement('span');
+      chip.className = 'tag-chip';
+      chip.textContent = tag;
+      meta.appendChild(chip);
+    });
     // Timestamps
     const timestamps = document.createElement('div');
     timestamps.className = 'todo-timestamp';
@@ -91,7 +107,7 @@ function renderTodos(data) {
     toggleBtn.onclick = () => toggleComplete(element.id);
     actions.append(editBtn, deleteBtn, toggleBtn);
     // Assemble card
-    card.append(badge, title, desc, timestamps, actions);
+    card.append(badge, title, desc, meta, timestamps, actions);
     document.querySelector('.outputData').appendChild(card);
   });
   updateFilterSortFeedback();
@@ -104,6 +120,8 @@ function openCreateModal() {
   document.getElementById('save-edit-btn').textContent = 'Add';
   document.getElementById('edit-title').value = '';
   document.getElementById('edit-desc').value = '';
+  document.getElementById('edit-priority').value = 'medium';
+  document.getElementById('edit-tags').value = '';
   document.getElementById('edit-completed').checked = false;
   document.getElementById('completed-checkbox-field').style.display = 'none';
   const modal = document.getElementById('edit-modal');
@@ -119,6 +137,8 @@ function openEditModal(todo) {
   document.getElementById('save-edit-btn').textContent = 'Save';
   document.getElementById('edit-title').value = todo.title;
   document.getElementById('edit-desc').value = todo.description;
+  document.getElementById('edit-priority').value = ['low', 'medium', 'high'].includes(todo.priority) ? todo.priority : 'medium';
+  document.getElementById('edit-tags').value = Array.isArray(todo.tags) ? todo.tags.join(', ') : '';
   document.getElementById('edit-completed').checked = todo.completed;
   document.getElementById('completed-checkbox-field').style.display = '';
   const modal = document.getElementById('edit-modal');
@@ -225,6 +245,8 @@ function fetchAndRenderTodos() {
   setLoading(true);
   let url = `${API_BASE}/todos?filter=${currentFilter !== 'all' ? currentFilter : ''}&sort=${currentSort}`;
   if (currentSearch) url += `&search=${encodeURIComponent(currentSearch)}`;
+  if (currentPriority) url += `&priority=${encodeURIComponent(currentPriority)}`;
+  if (currentTag) url += `&tag=${encodeURIComponent(currentTag)}`;
   fetchWithAuth(url)
     .then(resp => {
       if (resp.status === 401) { clearAuth(); showAuthModal(false); return []; }
@@ -255,6 +277,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const title = document.getElementById('edit-title').value;
     const description = document.getElementById('edit-desc').value;
     const completed = document.getElementById('edit-completed').checked;
+    const priority = document.getElementById('edit-priority').value;
+    const tags = document.getElementById('edit-tags').value.split(',').map(t => t.trim()).filter(Boolean);
     if (!title || !description) {
       // Optionally show a message in the UI, but do not use alert
       return;
@@ -265,7 +289,7 @@ document.addEventListener('DOMContentLoaded', function() {
       fetchWithAuth(`${API_BASE}/todos/${editingTodoId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, completed })
+        body: JSON.stringify({ title, description, completed, priority, tags })
       })
         .then(async resp => {
           if (!resp.ok) return;
@@ -284,7 +308,7 @@ document.addEventListener('DOMContentLoaded', function() {
       fetchWithAuth(`${API_BASE}/todos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, completed: false })
+        body: JSON.stringify({ title, description, completed: false, priority, tags })
       })
         .then(async resp => {
           if (!resp.ok) return;
@@ -324,6 +348,14 @@ document.addEventListener('DOMContentLoaded', function() {
     currentSort = e.target.value;
     fetchAndRenderTodos();
   };
+  document.getElementById('priority-filter-select').onchange = function(e) {
+    currentPriority = e.target.value;
+    fetchAndRenderTodos();
+  };
+  document.getElementById('tag-filter-input').oninput = function(e) {
+    currentTag = e.target.value.trim();
+    fetchAndRenderTodos();
+  };
   // Clear search button
   const searchInput = document.getElementById('search-input');
   const clearBtn = document.createElement('button');
@@ -343,7 +375,11 @@ document.addEventListener('DOMContentLoaded', function() {
     currentSearch = '';
     currentFilter = 'all';
     currentSort = 'createdAt';
+    currentPriority = '';
+    currentTag = '';
     document.getElementById('search-input').value = '';
+    document.getElementById('priority-filter-select').value = '';
+    document.getElementById('tag-filter-input').value = '';
     document.getElementById('filter-select').value = 'all';
     document.getElementById('sort-select').value = 'createdAt';
     fetchAndRenderTodos();
@@ -484,6 +520,8 @@ function updateFilterSortFeedback() {
   let msg = '';
   if (currentSearch) msg += `Search: "${currentSearch}"`;
   if (currentFilter !== 'all') msg += (msg ? ' | ' : '') + `Filter: ${currentFilter.charAt(0).toUpperCase() + currentFilter.slice(1)}`;
+  if (currentPriority) msg += (msg ? ' | ' : '') + `Priority: ${currentPriority.charAt(0).toUpperCase() + currentPriority.slice(1)}`;
+  if (currentTag) msg += (msg ? ' | ' : '') + `Tag: "${currentTag}"`;
   if (currentSort) msg += (msg ? ' | ' : '') + `Sort: ${document.getElementById('sort-select').selectedOptions[0].text}`;
   feedback.textContent = msg;
   feedback.style.display = msg ? 'block' : 'none';

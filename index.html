@@ -36,6 +36,13 @@
         <option value="updatedAt">Sort by Updated</option>
         <option value="title">Sort by Title</option>
       </select>
+      <select id="priority-filter-select" aria-label="Filter by priority">
+        <option value="">All priorities</option>
+        <option value="low">Low</option>
+        <option value="medium">Medium</option>
+        <option value="high">High</option>
+      </select>
+      <input type="text" id="tag-filter-input" placeholder="Filter by tag..." aria-label="Filter by tag" />
       <button id="clear-filters-btn" class="icon-btn" title="Clear Filters"><span class="material-icons">filter_alt_off</span></button>
     </section>
     <section class="todo-board">
@@ -58,6 +65,18 @@
         <div class="input-field">
           <textarea id="edit-desc" placeholder=" " required rows="3"></textarea>
           <label for="edit-desc">Description</label>
+        </div>
+        <div class="input-field select-field">
+          <label for="edit-priority">Priority</label>
+          <select id="edit-priority">
+            <option value="low">Low</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+        <div class="input-field">
+          <input type="text" id="edit-tags" placeholder=" " />
+          <label for="edit-tags">Tags (comma-separated)</label>
         </div>
         <div class="input-field" id="completed-checkbox-field" style="display:none;">
           <label for="edit-completed">Completed</label>
