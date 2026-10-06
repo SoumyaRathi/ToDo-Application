@@ -28,21 +28,6 @@ function setLoading(loading) {
   }
 }
 
-function fetchAndRenderTodos() {
-  if (!checkAuth()) return;
-  setLoading(true);
-  let url = `${API_BASE}/todos?filter=${currentFilter !== 'all' ? currentFilter : ''}&sort=${currentSort}`;
-  if (currentSearch) url += `&search=${encodeURIComponent(currentSearch)}`;
-  fetchWithAuth(url)
-    .then(resp => {
-      if (resp.status === 401) { clearAuth(); showAuthModal(false); return []; }
-      console.log(resp);
-      return resp.json();
-    })
-    .then(renderTodos)
-    .catch(err => alert(err.message));
-}
-
 function renderTodos(data) {
   setLoading(false);
   currentTodos = data;
@@ -67,6 +52,17 @@ function renderTodos(data) {
     const desc = document.createElement('p');
     desc.id = 'desc';
     desc.textContent = element.description;
+    // Due date
+    let dueEl = null;
+    if (element.dueDate) {
+      const [y, m, d] = element.dueDate.split('-').map(Number);
+      dueEl = document.createElement('div');
+      dueEl.className = 'todo-due';
+      dueEl.textContent = `Due: ${new Date(y, m - 1, d).toLocaleDateString()}`;
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      if (element.completed === false && element.dueDate < today) card.classList.add('overdue');
+    }
     // Timestamps
     const timestamps = document.createElement('div');
     timestamps.className = 'todo-timestamp';
@@ -91,7 +87,9 @@ function renderTodos(data) {
     toggleBtn.onclick = () => toggleComplete(element.id);
     actions.append(editBtn, deleteBtn, toggleBtn);
     // Assemble card
-    card.append(badge, title, desc, timestamps, actions);
+    card.append(badge, title, desc);
+    if (dueEl) card.append(dueEl);
+    card.append(timestamps, actions);
     document.querySelector('.outputData').appendChild(card);
   });
   updateFilterSortFeedback();
@@ -104,6 +102,7 @@ function openCreateModal() {
   document.getElementById('save-edit-btn').textContent = 'Add';
   document.getElementById('edit-title').value = '';
   document.getElementById('edit-desc').value = '';
+  document.getElementById('edit-dueDate').value = '';
   document.getElementById('edit-completed').checked = false;
   document.getElementById('completed-checkbox-field').style.display = 'none';
   const modal = document.getElementById('edit-modal');
@@ -119,6 +118,7 @@ function openEditModal(todo) {
   document.getElementById('save-edit-btn').textContent = 'Save';
   document.getElementById('edit-title').value = todo.title;
   document.getElementById('edit-desc').value = todo.description;
+  document.getElementById('edit-dueDate').value = todo.dueDate || '';
   document.getElementById('edit-completed').checked = todo.completed;
   document.getElementById('completed-checkbox-field').style.display = '';
   const modal = document.getElementById('edit-modal');
@@ -176,11 +176,9 @@ function showAuthButtons() {
   document.querySelector('.outputData').style.display = 'none';
   // Always attach listeners when showing
   loginBtn.onclick = function() {
-    console.log('Login button clicked');
     showAuthModal(false);
   };
   registerBtn.onclick = function() {
-    console.log('Register button clicked');
     showAuthModal(true);
   };
 }
@@ -219,7 +217,7 @@ function fetchWithAuth(url, options = {}) {
   return fetch(url, options);
 }
 
-// --- Update fetchAndRenderTodos to use fetchWithAuth and checkAuth ---
+// --- Fetch and render todos (uses fetchWithAuth and checkAuth) ---
 function fetchAndRenderTodos() {
   if (!checkAuth()) return;
   setLoading(true);
@@ -228,7 +226,6 @@ function fetchAndRenderTodos() {
   fetchWithAuth(url)
     .then(resp => {
       if (resp.status === 401) { clearAuth(); showAuthModal(false); return []; }
-      console.log(resp);
       return resp.json();
     })
     .then(renderTodos)
@@ -238,11 +235,9 @@ function fetchAndRenderTodos() {
 document.addEventListener('DOMContentLoaded', function() {
   // Always set up these listeners first
   document.getElementById('login-btn').onclick = function() {
-    console.log('Login button clicked');
     showAuthModal(false);
   };
   document.getElementById('register-btn').onclick = function() {
-    console.log('Register button clicked');
     showAuthModal(true);
   };
   document.getElementById('add-todo-btn').onclick = openCreateModal;
@@ -255,6 +250,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const title = document.getElementById('edit-title').value;
     const description = document.getElementById('edit-desc').value;
     const completed = document.getElementById('edit-completed').checked;
+    const dueDate = document.getElementById('edit-dueDate').value;
     if (!title || !description) {
       // Optionally show a message in the UI, but do not use alert
       return;
@@ -265,7 +261,7 @@ document.addEventListener('DOMContentLoaded', function() {
       fetchWithAuth(`${API_BASE}/todos/${editingTodoId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, completed })
+        body: JSON.stringify({ title, description, completed, dueDate: dueDate || null })
       })
         .then(async resp => {
           if (!resp.ok) return;
@@ -284,7 +280,7 @@ document.addEventListener('DOMContentLoaded', function() {
       fetchWithAuth(`${API_BASE}/todos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, completed: false })
+        body: JSON.stringify(dueDate ? { title, description, completed: false, dueDate } : { title, description, completed: false })
       })
         .then(async resp => {
           if (!resp.ok) return;
@@ -298,18 +294,6 @@ document.addEventListener('DOMContentLoaded', function() {
           fetchAndRenderTodos();
         })
         .catch(err => { console.error(err); });
-    }
-  };
-  window.addEventListener('keydown', function(e) {
-    const modal = document.getElementById('edit-modal');
-    if (modal.style.display === 'flex' && e.key === 'Escape') {
-      closeEditModal();
-    }
-  });
-  window.onclick = function(event) {
-    const modal = document.getElementById('edit-modal');
-    if (event.target === modal) {
-      closeEditModal();
     }
   };
   document.getElementById('search-input').oninput = function(e) {
@@ -412,32 +396,20 @@ document.addEventListener('DOMContentLoaded', function() {
         showAuthModal(false);
       });
   };
-  // Close auth modal on outside click
-  window.onclick = function(event) {
-    const modal = document.getElementById('edit-modal');
+  // Close edit/auth modals on outside click or Escape
+  // .modal-overlay covers each modal, so outside clicks land on the overlay rather than the modal itself
+  window.addEventListener('click', function(event) {
+    const isOutside = modal => event.target === modal || (event.target.classList.contains('modal-overlay') && modal.contains(event.target));
+    const editModal = document.getElementById('edit-modal');
     const authModal = document.getElementById('auth-modal');
-    if (event.target === modal) closeEditModal();
-    if (event.target === authModal) closeAuthModal();
-  };
-  window.addEventListener('keydown', function(e) {
-    const modal = document.getElementById('edit-modal');
-    const authModal = document.getElementById('auth-modal');
-    if (modal.style.display === 'flex' && e.key === 'Escape') closeEditModal();
-    if (authModal.style.display === 'flex' && e.key === 'Escape') closeAuthModal();
+    if (isOutside(editModal)) closeEditModal();
+    if (isOutside(authModal)) closeAuthModal();
   });
-  // Add event listeners for closing auth modal
   window.addEventListener('keydown', function(e) {
-    const authModal = document.getElementById('auth-modal');
-    if (authModal.style.display === 'flex' && e.key === 'Escape') {
-      closeAuthModal();
-    }
+    if (e.key !== 'Escape') return;
+    if (document.getElementById('edit-modal').style.display === 'flex') closeEditModal();
+    if (document.getElementById('auth-modal').style.display === 'flex') closeAuthModal();
   });
-  window.onclick = function(event) {
-    const authModal = document.getElementById('auth-modal');
-    if (event.target === authModal) {
-      closeAuthModal();
-    }
-  };
   // Restore user info in header if logged in
   const token = localStorage.getItem('token');
   const name = localStorage.getItem('name');

@@ -160,6 +160,19 @@ html, body {
   color: #bbb;
   margin-top: 0.2em;
 }
+.output .todo-due {
+  font-size: 0.95em;
+  font-weight: 600;
+  color: #5b6ee1;
+  margin-top: 0.2em;
+}
+.output.overdue {
+  border-color: #e5484d;
+  background: rgba(255,240,240,0.9);
+}
+.output.overdue .todo-due {
+  color: #e5484d;
+}
 .output .todo-actions {
   display: flex;
   gap: 0.5rem;
@@ -335,6 +348,32 @@ html, body {
   border-radius: 6px;
   padding: 0 0.3em;
   font-weight: 600;
+}
+
+/* Due date field uses a static label above the date input */
+.due-date-field label {
+  position: static;
+  margin: 0 0 0.4em 0.2em;
+  font-size: 0.88em;
+  font-weight: 600;
+  color: #5b6ee1;
+}
+.due-date-field input[type="date"] {
+  background: rgba(255,255,255,0.18);
+  border: 1px solid #a1c4fd;
+  border-radius: 10px;
+  padding: 0.8em 1em;
+  font-size: 1.08em;
+  font-family: inherit;
+  color: #222;
+  box-shadow: 0 2px 8px 0 rgba(91,110,225,0.07);
+  outline: none;
+  transition: border 0.2s, box-shadow 0.2s, background 0.2s;
+}
+.due-date-field input[type="date"]:focus {
+  border: 1px solid #5b6ee1;
+  background: rgba(255,255,255,0.32);
+  box-shadow: 0 4px 16px 0 rgba(91,110,225,0.13);
 }
 
 /* Custom modern toggle switch for completed */
