@@ -90,6 +90,37 @@ function validateTodoInput(todo) {
   return true;
 }
 
+function hasOrder(todo) {
+  return typeof todo.order === 'number' && Number.isFinite(todo.order);
+}
+
+function nextOrderForUser(todos, userId) {
+  return todos.filter(t => t.userId === userId && hasOrder(t)).reduce((max, t) => Math.max(max, t.order), 0) + 1;
+}
+
+// Assigns `order` to todos missing it, following current file order per user. Returns true if anything changed.
+function migrateOrder(todos) {
+  let changed = false;
+  const next = {};
+  todos.forEach(t => {
+    if (hasOrder(t)) return;
+    if (next[t.userId] === undefined) next[t.userId] = nextOrderForUser(todos, t.userId);
+    t.order = next[t.userId]++;
+    changed = true;
+  });
+  return changed;
+}
+
+function readTodosMigrated() {
+  const todos = readTodos();
+  if (migrateOrder(todos)) writeTodos(todos);
+  return todos;
+}
+
+function compareByOrder(a, b) {
+  return a.order - b.order || a.id - b.id;
+}
+
 // Parses an optional dueDate. Returns { provided, clear, valid, value }.
 function parseDueDate(input) {
   if (input === undefined) return { provided: false };
@@ -119,7 +150,8 @@ app.post('/signup', (req, res) => {
       description: 'This is your first todo. You can edit or delete it.',
       completed: false,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      order: 1
     });
     writeTodos(todos);
   }
@@ -157,7 +189,7 @@ function requireAuth(req, res, next) {
 
 // GET /todos - Retrieve all todo items, with optional search/filter/sort
 app.get('/todos', requireAuth, (req, res) => {
-  let todos = readTodos().filter(t => t.userId === req.userId);
+  let todos = readTodosMigrated().filter(t => t.userId === req.userId);
   const { search, filter, sort } = req.query;
   if (search) {
     const s = search.toLowerCase();
@@ -165,6 +197,7 @@ app.get('/todos', requireAuth, (req, res) => {
   }
   if (filter === 'completed') todos = todos.filter(t => t.completed);
   if (filter === 'active') todos = todos.filter(t => !t.completed);
+  if (!sort) todos = todos.sort(compareByOrder);
   if (sort === 'title') todos = todos.sort((a, b) => a.title.localeCompare(b.title));
   if (sort === 'createdAt') todos = todos.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   if (sort === 'updatedAt') todos = todos.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
@@ -197,7 +230,7 @@ app.get('/todos/:id', requireAuth, (req, res) => {
 
 // POST /todos - Create a new todo item
 app.post('/todos', requireAuth, (req, res) => {
-  const todos = readTodos();
+  const todos = readTodosMigrated();
   const { title, description, completed } = req.body;
   const due = parseDueDate(req.body.dueDate);
   if (due.provided && !due.valid) {
@@ -211,6 +244,7 @@ app.post('/todos', requireAuth, (req, res) => {
     completed: !!completed,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    order: nextOrderForUser(todos, req.userId),
   };
   if (due.value) newTodo.dueDate = due.value;
   if (!validateTodoInput(newTodo)) {
