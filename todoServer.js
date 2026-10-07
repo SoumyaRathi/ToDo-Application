@@ -284,7 +284,7 @@ app.put('/todos/reorder', requireAuth, (req, res) => {
 
 // PUT /todos/:id - Update an existing todo item by ID
 app.put('/todos/:id', requireAuth, (req, res) => {
-  const todos = readTodos();
+  const todos = readTodosMigrated();
   const todoIndex = todos.findIndex((data) => data.id == req.params.id && data.userId === req.userId);
   if (todoIndex !== -1) {
     const { title, description, completed } = req.body;
