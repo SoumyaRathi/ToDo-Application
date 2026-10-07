@@ -4,12 +4,22 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "nodemon todoServer.js"
+    "start": "nodemon todoServer.js",
+    "test:api": "jest --runInBand",
+    "test:e2e": "playwright test --project=chromium"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "<rootDir>/__tests__/api/**/*.test.js"
+    ]
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "jest": "^30.5.2",
     "nodemon": "^3.0.1",
     "supertest": "^6.3.3"
   },
