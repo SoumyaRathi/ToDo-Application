@@ -90,6 +90,37 @@ function validateTodoInput(todo) {
   return true;
 }
 
+function hasOrder(todo) {
+  return typeof todo.order === 'number' && Number.isFinite(todo.order);
+}
+
+function nextOrderForUser(todos, userId) {
+  return todos.filter(t => t.userId === userId && hasOrder(t)).reduce((max, t) => Math.max(max, t.order), 0) + 1;
+}
+
+// For any user with a todo missing `order`, renumbers all of that user's todos 1..N in current file order. Returns true if anything changed.
+function migrateOrder(todos) {
+  const needsMigration = new Set(todos.filter(t => !hasOrder(t)).map(t => t.userId));
+  if (needsMigration.size === 0) return false;
+  const next = {};
+  todos.forEach(t => {
+    if (!needsMigration.has(t.userId)) return;
+    next[t.userId] = (next[t.userId] || 0) + 1;
+    t.order = next[t.userId];
+  });
+  return true;
+}
+
+function readTodosMigrated() {
+  const todos = readTodos();
+  if (migrateOrder(todos)) writeTodos(todos);
+  return todos;
+}
+
+function compareByOrder(a, b) {
+  return a.order - b.order || a.id - b.id;
+}
+
 // Parses an optional dueDate. Returns { provided, clear, valid, value }.
 function parseDueDate(input) {
   if (input === undefined) return { provided: false };
@@ -119,7 +150,8 @@ app.post('/signup', (req, res) => {
       description: 'This is your first todo. You can edit or delete it.',
       completed: false,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      order: 1
     });
     writeTodos(todos);
   }
@@ -157,7 +189,7 @@ function requireAuth(req, res, next) {
 
 // GET /todos - Retrieve all todo items, with optional search/filter/sort
 app.get('/todos', requireAuth, (req, res) => {
-  let todos = readTodos().filter(t => t.userId === req.userId);
+  let todos = readTodosMigrated().filter(t => t.userId === req.userId);
   const { search, filter, sort } = req.query;
   if (search) {
     const s = search.toLowerCase();
@@ -165,6 +197,7 @@ app.get('/todos', requireAuth, (req, res) => {
   }
   if (filter === 'completed') todos = todos.filter(t => t.completed);
   if (filter === 'active') todos = todos.filter(t => !t.completed);
+  if (!sort) todos = todos.sort(compareByOrder);
   if (sort === 'title') todos = todos.sort((a, b) => a.title.localeCompare(b.title));
   if (sort === 'createdAt') todos = todos.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   if (sort === 'updatedAt') todos = todos.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
@@ -197,7 +230,7 @@ app.get('/todos/:id', requireAuth, (req, res) => {
 
 // POST /todos - Create a new todo item
 app.post('/todos', requireAuth, (req, res) => {
-  const todos = readTodos();
+  const todos = readTodosMigrated();
   const { title, description, completed } = req.body;
   const due = parseDueDate(req.body.dueDate);
   if (due.provided && !due.valid) {
@@ -211,6 +244,7 @@ app.post('/todos', requireAuth, (req, res) => {
     completed: !!completed,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    order: nextOrderForUser(todos, req.userId),
   };
   if (due.value) newTodo.dueDate = due.value;
   if (!validateTodoInput(newTodo)) {
@@ -221,9 +255,36 @@ app.post('/todos', requireAuth, (req, res) => {
   res.status(201).json(newTodo);
 });
 
+// PUT /todos/reorder - Bulk reorder the user's todos (must be registered before /todos/:id)
+app.put('/todos/reorder', requireAuth, (req, res) => {
+  const { orderedIds } = req.body || {};
+  if (!Array.isArray(orderedIds) || !orderedIds.every(id => Number.isInteger(id))) {
+    return res.status(400).json({ error: 'orderedIds must be an array of integer ids.' });
+  }
+  if (new Set(orderedIds).size !== orderedIds.length) {
+    return res.status(400).json({ error: 'orderedIds must not contain duplicates.' });
+  }
+  const todos = readTodosMigrated();
+  const userTodos = todos.filter(t => t.userId === req.userId);
+  const owned = new Set(userTodos.map(t => t.id));
+  if (orderedIds.length !== userTodos.length || !orderedIds.every(id => owned.has(id))) {
+    return res.status(400).json({ error: 'orderedIds must contain exactly the ids of your todos.' });
+  }
+  const currentIds = userTodos.slice().sort(compareByOrder).map(t => t.id);
+  if (currentIds.every((id, i) => id === orderedIds[i])) {
+    return res.status(200).json({ message: 'Order unchanged.' });
+  }
+  const position = new Map(orderedIds.map((id, i) => [id, i + 1]));
+  todos.forEach(t => {
+    if (t.userId === req.userId) t.order = position.get(t.id);
+  });
+  if (!writeTodos(todos, res)) return;
+  res.status(200).json({ message: 'Order updated.' });
+});
+
 // PUT /todos/:id - Update an existing todo item by ID
 app.put('/todos/:id', requireAuth, (req, res) => {
-  const todos = readTodos();
+  const todos = readTodosMigrated();
   const todoIndex = todos.findIndex((data) => data.id == req.params.id && data.userId === req.userId);
   if (todoIndex !== -1) {
     const { title, description, completed } = req.body;
@@ -282,6 +343,10 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
-app.listen(PORT, () => {
-  console.log(`App is listening on http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`App is listening on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;
