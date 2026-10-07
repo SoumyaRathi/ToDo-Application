@@ -52,7 +52,7 @@ function renderTodos(data) {
     outputContainer.innerHTML = '<div class="empty-state">No todos found.</div>';
     return;
   }
-  const dragEnabled = data.length >= 2 && currentFilter === 'all' && !currentSearch && currentSort === '';
+  const dragEnabled = isReorderEnabled(data.length);
   data.forEach(element => {
     const card = document.createElement('div');
     card.className = 'output' + (element.completed ? ' completed' : '');
@@ -110,6 +110,10 @@ function renderTodos(data) {
 // --- Drag-and-drop reorder ---
 let draggedCard = null;
 
+function isReorderEnabled(count) {
+  return count >= 2 && currentFilter === 'all' && !currentSearch && currentSort === '';
+}
+
 function clearDragOver() {
   document.querySelectorAll('.output.is-dragover').forEach(c => c.classList.remove('is-dragover'));
 }
@@ -152,6 +156,7 @@ function onCardDragEnd() {
 }
 
 function persistReorder() {
+  if (!isReorderEnabled(currentTodos.length)) return;
   const orderedIds = Array.from(document.querySelectorAll('.outputData > .output')).map(c => Number(c.dataset.id));
   if (orderedIds.length < 2) return;
   fetchWithAuth(`${API_BASE}/todos/reorder`, {
