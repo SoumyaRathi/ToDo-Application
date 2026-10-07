@@ -255,6 +255,33 @@ app.post('/todos', requireAuth, (req, res) => {
   res.status(201).json(newTodo);
 });
 
+// PUT /todos/reorder - Bulk reorder the user's todos (must be registered before /todos/:id)
+app.put('/todos/reorder', requireAuth, (req, res) => {
+  const { orderedIds } = req.body || {};
+  if (!Array.isArray(orderedIds) || !orderedIds.every(id => Number.isInteger(id))) {
+    return res.status(400).json({ error: 'orderedIds must be an array of integer ids.' });
+  }
+  if (new Set(orderedIds).size !== orderedIds.length) {
+    return res.status(400).json({ error: 'orderedIds must not contain duplicates.' });
+  }
+  const todos = readTodosMigrated();
+  const userTodos = todos.filter(t => t.userId === req.userId);
+  const owned = new Set(userTodos.map(t => t.id));
+  if (orderedIds.length !== userTodos.length || !orderedIds.every(id => owned.has(id))) {
+    return res.status(400).json({ error: 'orderedIds must contain exactly the ids of your todos.' });
+  }
+  const currentIds = userTodos.slice().sort(compareByOrder).map(t => t.id);
+  if (currentIds.every((id, i) => id === orderedIds[i])) {
+    return res.status(200).json({ message: 'Order unchanged.' });
+  }
+  const position = new Map(orderedIds.map((id, i) => [id, i + 1]));
+  todos.forEach(t => {
+    if (t.userId === req.userId) t.order = position.get(t.id);
+  });
+  if (!writeTodos(todos, res)) return;
+  res.status(200).json({ message: 'Order updated.' });
+});
+
 // PUT /todos/:id - Update an existing todo item by ID
 app.put('/todos/:id', requireAuth, (req, res) => {
   const todos = readTodos();
