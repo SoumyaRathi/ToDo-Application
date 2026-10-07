@@ -98,17 +98,17 @@ function nextOrderForUser(todos, userId) {
   return todos.filter(t => t.userId === userId && hasOrder(t)).reduce((max, t) => Math.max(max, t.order), 0) + 1;
 }
 
-// Assigns `order` to todos missing it, following current file order per user. Returns true if anything changed.
+// For any user with a todo missing `order`, renumbers all of that user's todos 1..N in current file order. Returns true if anything changed.
 function migrateOrder(todos) {
-  let changed = false;
+  const needsMigration = new Set(todos.filter(t => !hasOrder(t)).map(t => t.userId));
+  if (needsMigration.size === 0) return false;
   const next = {};
   todos.forEach(t => {
-    if (hasOrder(t)) return;
-    if (next[t.userId] === undefined) next[t.userId] = nextOrderForUser(todos, t.userId);
-    t.order = next[t.userId]++;
-    changed = true;
+    if (!needsMigration.has(t.userId)) return;
+    next[t.userId] = (next[t.userId] || 0) + 1;
+    t.order = next[t.userId];
   });
-  return changed;
+  return true;
 }
 
 function readTodosMigrated() {
