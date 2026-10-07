@@ -100,6 +100,21 @@ function parseDueDate(input) {
   return { provided: true, valid: true, value: input };
 }
 
+const PRIORITIES = ['High', 'Med', 'Low'];
+const DEFAULT_PRIORITY = 'Med';
+
+// Returns DEFAULT_PRIORITY when absent, the value when valid, or null when invalid.
+function normalizePriority(value) {
+  if (value === undefined || value === null || value === '') return DEFAULT_PRIORITY;
+  return PRIORITIES.includes(value) ? value : null;
+}
+
+// Rank for sorting: High=0, Med=1, Low=2. Missing/invalid values rank as the default.
+function priorityRank(p) {
+  const normalized = normalizePriority(p) || DEFAULT_PRIORITY;
+  return PRIORITIES.indexOf(normalized);
+}
+
 // Signup
 app.post('/signup', (req, res) => {
   const { name, email, password } = req.body;
@@ -158,13 +173,14 @@ function requireAuth(req, res, next) {
 // GET /todos - Retrieve all todo items, with optional search/filter/sort
 app.get('/todos', requireAuth, (req, res) => {
   let todos = readTodos().filter(t => t.userId === req.userId);
-  const { search, filter, sort } = req.query;
+  const { search, filter, sort, priority } = req.query;
   if (search) {
     const s = search.toLowerCase();
     todos = todos.filter(t => t.title.toLowerCase().includes(s) || t.description.toLowerCase().includes(s));
   }
   if (filter === 'completed') todos = todos.filter(t => t.completed);
   if (filter === 'active') todos = todos.filter(t => !t.completed);
+  if (PRIORITIES.includes(priority)) todos = todos.filter(t => (normalizePriority(t.priority) || DEFAULT_PRIORITY) === priority);
   if (sort === 'title') todos = todos.sort((a, b) => a.title.localeCompare(b.title));
   if (sort === 'createdAt') todos = todos.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   if (sort === 'updatedAt') todos = todos.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
@@ -179,6 +195,9 @@ app.get('/todos', requireAuth, (req, res) => {
       if (b.dueDate) return 1;
       return a.id - b.id;
     });
+  }
+  if (sort === 'priority') {
+    todos = todos.sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority) || a.id - b.id);
   }
   res.status(200).json(todos);
 });
@@ -203,12 +222,17 @@ app.post('/todos', requireAuth, (req, res) => {
   if (due.provided && !due.valid) {
     return res.status(400).json({ error: 'Invalid dueDate. Expected a valid date in YYYY-MM-DD format.', field: 'dueDate' });
   }
+  const priority = normalizePriority(req.body.priority);
+  if (priority === null) {
+    return res.status(400).json({ error: 'Invalid priority', field: 'priority' });
+  }
   const newTodo = {
     id: todos.length > 0 ? todos[todos.length - 1].id + 1 : 1,
     userId: req.userId,
     title,
     description,
     completed: !!completed,
+    priority,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -231,11 +255,18 @@ app.put('/todos/:id', requireAuth, (req, res) => {
     if (due.provided && !due.valid) {
       return res.status(400).json({ error: 'Invalid dueDate. Expected a valid date in YYYY-MM-DD format.', field: 'dueDate' });
     }
+    const priority = req.body.priority === undefined
+      ? normalizePriority(todos[todoIndex].priority) || DEFAULT_PRIORITY
+      : normalizePriority(req.body.priority);
+    if (priority === null) {
+      return res.status(400).json({ error: 'Invalid priority', field: 'priority' });
+    }
     const updatedTodo = {
       ...todos[todoIndex],
       title,
       description,
       completed: !!completed,
+      priority,
       updatedAt: new Date().toISOString(),
     };
     if (due.clear) delete updatedTodo.dueDate;

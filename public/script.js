@@ -14,6 +14,7 @@ const API_BASE = window.location.origin;
 // State
 let currentTodos = [];
 let currentFilter = 'all';
+let currentPriorityFilter = 'all';
 let currentSort = 'createdAt';
 let currentSearch = '';
 let editingTodoId = null;
@@ -59,6 +60,11 @@ function renderTodos(data) {
     const badge = document.createElement('span');
     badge.className = 'status-badge ' + (element.completed ? 'completed' : 'active');
     badge.textContent = element.completed ? 'Completed' : 'Active';
+    // Priority badge (legacy todos without priority default to Med)
+    const priorityValue = ['High', 'Med', 'Low'].includes(element.priority) ? element.priority : 'Med';
+    const priorityBadge = document.createElement('span');
+    priorityBadge.className = 'priority-badge priority-' + priorityValue.toLowerCase();
+    priorityBadge.textContent = priorityValue;
     // Title
     const title = document.createElement('p');
     title.id = 'title';
@@ -91,7 +97,7 @@ function renderTodos(data) {
     toggleBtn.onclick = () => toggleComplete(element.id);
     actions.append(editBtn, deleteBtn, toggleBtn);
     // Assemble card
-    card.append(badge, title, desc, timestamps, actions);
+    card.append(badge, priorityBadge, title, desc, timestamps, actions);
     document.querySelector('.outputData').appendChild(card);
   });
   updateFilterSortFeedback();
@@ -105,6 +111,7 @@ function openCreateModal() {
   document.getElementById('edit-title').value = '';
   document.getElementById('edit-desc').value = '';
   document.getElementById('edit-completed').checked = false;
+  document.getElementById('edit-priority').value = 'Med';
   document.getElementById('completed-checkbox-field').style.display = 'none';
   const modal = document.getElementById('edit-modal');
   modal.setAttribute('aria-hidden', 'false');
@@ -120,6 +127,7 @@ function openEditModal(todo) {
   document.getElementById('edit-title').value = todo.title;
   document.getElementById('edit-desc').value = todo.description;
   document.getElementById('edit-completed').checked = todo.completed;
+  document.getElementById('edit-priority').value = todo.priority || 'Med';
   document.getElementById('completed-checkbox-field').style.display = '';
   const modal = document.getElementById('edit-modal');
   modal.setAttribute('aria-hidden', 'false');
@@ -225,6 +233,7 @@ function fetchAndRenderTodos() {
   setLoading(true);
   let url = `${API_BASE}/todos?filter=${currentFilter !== 'all' ? currentFilter : ''}&sort=${currentSort}`;
   if (currentSearch) url += `&search=${encodeURIComponent(currentSearch)}`;
+  if (currentPriorityFilter !== 'all') url += `&priority=${encodeURIComponent(currentPriorityFilter)}`;
   fetchWithAuth(url)
     .then(resp => {
       if (resp.status === 401) { clearAuth(); showAuthModal(false); return []; }
@@ -255,6 +264,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const title = document.getElementById('edit-title').value;
     const description = document.getElementById('edit-desc').value;
     const completed = document.getElementById('edit-completed').checked;
+    const priority = document.getElementById('edit-priority').value;
     if (!title || !description) {
       // Optionally show a message in the UI, but do not use alert
       return;
@@ -265,7 +275,7 @@ document.addEventListener('DOMContentLoaded', function() {
       fetchWithAuth(`${API_BASE}/todos/${editingTodoId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, completed })
+        body: JSON.stringify({ title, description, completed, priority })
       })
         .then(async resp => {
           if (!resp.ok) return;
@@ -284,7 +294,7 @@ document.addEventListener('DOMContentLoaded', function() {
       fetchWithAuth(`${API_BASE}/todos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, completed: false })
+        body: JSON.stringify({ title, description, completed: false, priority })
       })
         .then(async resp => {
           if (!resp.ok) return;
@@ -320,6 +330,10 @@ document.addEventListener('DOMContentLoaded', function() {
     currentFilter = e.target.value;
     fetchAndRenderTodos();
   };
+  document.getElementById('priority-filter-select').onchange = function(e) {
+    currentPriorityFilter = e.target.value;
+    fetchAndRenderTodos();
+  };
   document.getElementById('sort-select').onchange = function(e) {
     currentSort = e.target.value;
     fetchAndRenderTodos();
@@ -342,9 +356,11 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('clear-filters-btn').onclick = function() {
     currentSearch = '';
     currentFilter = 'all';
+    currentPriorityFilter = 'all';
     currentSort = 'createdAt';
     document.getElementById('search-input').value = '';
     document.getElementById('filter-select').value = 'all';
+    document.getElementById('priority-filter-select').value = 'all';
     document.getElementById('sort-select').value = 'createdAt';
     fetchAndRenderTodos();
   };
