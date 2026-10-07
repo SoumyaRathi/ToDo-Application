@@ -14,7 +14,7 @@ const API_BASE = window.location.origin;
 // State
 let currentTodos = [];
 let currentFilter = 'all';
-let currentSort = 'createdAt';
+let currentSort = '';
 let currentSearch = '';
 let editingTodoId = null;
 let isLoading = false;
@@ -52,6 +52,7 @@ function renderTodos(data) {
     outputContainer.innerHTML = '<div class="empty-state">No todos found.</div>';
     return;
   }
+  const dragEnabled = data.length >= 2 && currentFilter === 'all' && !currentSearch && currentSort === '';
   data.forEach(element => {
     const card = document.createElement('div');
     card.className = 'output' + (element.completed ? ' completed' : '');
@@ -92,9 +93,77 @@ function renderTodos(data) {
     actions.append(editBtn, deleteBtn, toggleBtn);
     // Assemble card
     card.append(badge, title, desc, timestamps, actions);
+    card.dataset.id = element.id;
+    if (dragEnabled) {
+      card.draggable = true;
+      card.addEventListener('dragstart', onCardDragStart);
+      card.addEventListener('dragover', onCardDragOver);
+      card.addEventListener('dragleave', onCardDragLeave);
+      card.addEventListener('drop', onCardDrop);
+      card.addEventListener('dragend', onCardDragEnd);
+    }
     document.querySelector('.outputData').appendChild(card);
   });
   updateFilterSortFeedback();
+}
+
+// --- Drag-and-drop reorder ---
+let draggedCard = null;
+
+function clearDragOver() {
+  document.querySelectorAll('.output.is-dragover').forEach(c => c.classList.remove('is-dragover'));
+}
+
+function onCardDragStart(e) {
+  draggedCard = e.currentTarget;
+  draggedCard.classList.add('is-dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', draggedCard.dataset.id);
+}
+
+function onCardDragOver(e) {
+  if (!draggedCard) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  if (e.currentTarget !== draggedCard) e.currentTarget.classList.add('is-dragover');
+}
+
+function onCardDragLeave(e) {
+  e.currentTarget.classList.remove('is-dragover');
+}
+
+function onCardDrop(e) {
+  if (!draggedCard) return;
+  e.preventDefault();
+  const target = e.currentTarget;
+  clearDragOver();
+  if (target === draggedCard) return;
+  const container = document.querySelector('.outputData');
+  const cards = Array.from(container.children);
+  if (cards.indexOf(draggedCard) < cards.indexOf(target)) target.after(draggedCard);
+  else target.before(draggedCard);
+  persistReorder();
+}
+
+function onCardDragEnd() {
+  if (draggedCard) draggedCard.classList.remove('is-dragging');
+  draggedCard = null;
+  clearDragOver();
+}
+
+function persistReorder() {
+  const orderedIds = Array.from(document.querySelectorAll('.outputData > .output')).map(c => Number(c.dataset.id));
+  if (orderedIds.length < 2) return;
+  fetchWithAuth(`${API_BASE}/todos/reorder`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderedIds })
+  })
+    .then(resp => {
+      if (resp.status === 401) { clearAuth(); showAuthModal(false); return; }
+      if (!resp.ok) fetchAndRenderTodos();
+    })
+    .catch(() => fetchAndRenderTodos());
 }
 
 function openCreateModal() {
@@ -342,10 +411,10 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('clear-filters-btn').onclick = function() {
     currentSearch = '';
     currentFilter = 'all';
-    currentSort = 'createdAt';
+    currentSort = '';
     document.getElementById('search-input').value = '';
     document.getElementById('filter-select').value = 'all';
-    document.getElementById('sort-select').value = 'createdAt';
+    document.getElementById('sort-select').value = '';
     fetchAndRenderTodos();
   };
   // Initial load
