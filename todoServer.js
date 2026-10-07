@@ -100,6 +100,21 @@ function parseDueDate(input) {
   return { provided: true, valid: true, value: input };
 }
 
+const PRIORITIES = ['High', 'Med', 'Low'];
+const DEFAULT_PRIORITY = 'Med';
+
+// Returns DEFAULT_PRIORITY when absent, the value when valid, or null when invalid.
+function normalizePriority(value) {
+  if (value === undefined || value === null || value === '') return DEFAULT_PRIORITY;
+  return PRIORITIES.includes(value) ? value : null;
+}
+
+// Rank for sorting: High=0, Med=1, Low=2. Missing/invalid values rank as the default.
+function priorityRank(p) {
+  const normalized = normalizePriority(p) || DEFAULT_PRIORITY;
+  return PRIORITIES.indexOf(normalized);
+}
+
 // Signup
 app.post('/signup', (req, res) => {
   const { name, email, password } = req.body;
