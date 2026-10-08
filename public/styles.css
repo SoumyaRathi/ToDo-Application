@@ -160,6 +160,13 @@ html, body {
   color: #bbb;
   margin-top: 0.2em;
 }
+.output .todo-due-date {
+  font-size: 0.92em;
+  font-weight: 600;
+  color: #5b6ee1;
+  margin: 0.1em 0 0.3em 0;
+  overflow-wrap: anywhere;
+}
 .output .todo-actions {
   display: flex;
   gap: 0.5rem;
@@ -335,6 +342,23 @@ html, body {
   border-radius: 6px;
   padding: 0 0.3em;
   font-weight: 600;
+}
+
+.input-hint {
+  margin-top: 0.35em;
+  padding-left: 0.4em;
+  font-size: 0.8em;
+  color: #888;
+}
+.input-error {
+  margin-top: 0.25em;
+  padding-left: 0.4em;
+  font-size: 0.85em;
+  font-weight: 600;
+  color: #d93025;
+}
+.input-field input[aria-invalid="true"] {
+  border-color: #d93025;
 }
 
 /* Custom modern toggle switch for completed */

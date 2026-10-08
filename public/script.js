@@ -28,21 +28,6 @@ function setLoading(loading) {
   }
 }
 
-function fetchAndRenderTodos() {
-  if (!checkAuth()) return;
-  setLoading(true);
-  let url = `${API_BASE}/todos?filter=${currentFilter !== 'all' ? currentFilter : ''}&sort=${currentSort}`;
-  if (currentSearch) url += `&search=${encodeURIComponent(currentSearch)}`;
-  fetchWithAuth(url)
-    .then(resp => {
-      if (resp.status === 401) { clearAuth(); showAuthModal(false); return []; }
-      console.log(resp);
-      return resp.json();
-    })
-    .then(renderTodos)
-    .catch(err => alert(err.message));
-}
-
 function renderTodos(data) {
   setLoading(false);
   currentTodos = data;
@@ -71,6 +56,13 @@ function renderTodos(data) {
     const timestamps = document.createElement('div');
     timestamps.className = 'todo-timestamp';
     timestamps.textContent = `Created: ${new Date(element.createdAt).toLocaleString()} | Updated: ${new Date(element.updatedAt).toLocaleString()}`;
+    // Due date (only when present)
+    let dueDateEl = null;
+    if (element.dueDate) {
+      dueDateEl = document.createElement('div');
+      dueDateEl.className = 'todo-due-date';
+      dueDateEl.textContent = `Due: ${element.dueDate}`;
+    }
     // Actions
     const actions = document.createElement('div');
     actions.className = 'todo-actions';
@@ -91,10 +83,33 @@ function renderTodos(data) {
     toggleBtn.onclick = () => toggleComplete(element.id);
     actions.append(editBtn, deleteBtn, toggleBtn);
     // Assemble card
-    card.append(badge, title, desc, timestamps, actions);
+    card.append(badge, title, desc);
+    if (dueDateEl) card.append(dueDateEl);
+    card.append(timestamps, actions);
     document.querySelector('.outputData').appendChild(card);
   });
   updateFilterSortFeedback();
+}
+
+const DUE_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function setDueDateError(message) {
+  const input = document.getElementById('todoDueDate');
+  let error = document.getElementById('todoDueDate-error');
+  if (!message) {
+    if (error) error.remove();
+    input.removeAttribute('aria-invalid');
+    return;
+  }
+  if (!error) {
+    error = document.createElement('small');
+    error.id = 'todoDueDate-error';
+    error.className = 'input-error';
+    error.setAttribute('role', 'alert');
+    input.parentNode.appendChild(error);
+  }
+  error.textContent = message;
+  input.setAttribute('aria-invalid', 'true');
 }
 
 function openCreateModal() {
@@ -105,6 +120,8 @@ function openCreateModal() {
   document.getElementById('edit-title').value = '';
   document.getElementById('edit-desc').value = '';
   document.getElementById('edit-completed').checked = false;
+  document.getElementById('todoDueDate').value = '';
+  setDueDateError('');
   document.getElementById('completed-checkbox-field').style.display = 'none';
   const modal = document.getElementById('edit-modal');
   modal.setAttribute('aria-hidden', 'false');
@@ -120,6 +137,8 @@ function openEditModal(todo) {
   document.getElementById('edit-title').value = todo.title;
   document.getElementById('edit-desc').value = todo.description;
   document.getElementById('edit-completed').checked = todo.completed;
+  document.getElementById('todoDueDate').value = todo.dueDate || '';
+  setDueDateError('');
   document.getElementById('completed-checkbox-field').style.display = '';
   const modal = document.getElementById('edit-modal');
   modal.setAttribute('aria-hidden', 'false');
@@ -255,17 +274,23 @@ document.addEventListener('DOMContentLoaded', function() {
     const title = document.getElementById('edit-title').value;
     const description = document.getElementById('edit-desc').value;
     const completed = document.getElementById('edit-completed').checked;
+    const dueDate = document.getElementById('todoDueDate').value;
     if (!title || !description) {
       // Optionally show a message in the UI, but do not use alert
       return;
     }
+    if (dueDate && !DUE_DATE_PATTERN.test(dueDate)) {
+      setDueDateError('Invalid due date. Use format YYYY-MM-DD.');
+      return;
+    }
+    setDueDateError('');
     setLoading(true);
     if (isEditMode && editingTodoId) {
       // Update
       fetchWithAuth(`${API_BASE}/todos/${editingTodoId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, completed })
+        body: JSON.stringify({ title, description, completed, dueDate: dueDate || '' })
       })
         .then(async resp => {
           if (!resp.ok) return;
@@ -284,7 +309,7 @@ document.addEventListener('DOMContentLoaded', function() {
       fetchWithAuth(`${API_BASE}/todos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, completed: false })
+        body: JSON.stringify(dueDate ? { title, description, completed: false, dueDate } : { title, description, completed: false })
       })
         .then(async resp => {
           if (!resp.ok) return;
@@ -306,12 +331,6 @@ document.addEventListener('DOMContentLoaded', function() {
       closeEditModal();
     }
   });
-  window.onclick = function(event) {
-    const modal = document.getElementById('edit-modal');
-    if (event.target === modal) {
-      closeEditModal();
-    }
-  };
   document.getElementById('search-input').oninput = function(e) {
     currentSearch = e.target.value;
     fetchAndRenderTodos();
@@ -413,12 +432,14 @@ document.addEventListener('DOMContentLoaded', function() {
       });
   };
   // Close auth modal on outside click
-  window.onclick = function(event) {
+  window.addEventListener('click', function(event) {
     const modal = document.getElementById('edit-modal');
     const authModal = document.getElementById('auth-modal');
-    if (event.target === modal) closeEditModal();
-    if (event.target === authModal) closeAuthModal();
-  };
+    // The full-screen .modal-overlay covers each modal, so it is the real click target for the backdrop
+    const isBackdrop = m => event.target === m || (event.target.classList.contains('modal-overlay') && event.target.parentNode === m);
+    if (isBackdrop(modal)) closeEditModal();
+    if (isBackdrop(authModal)) closeAuthModal();
+  });
   window.addEventListener('keydown', function(e) {
     const modal = document.getElementById('edit-modal');
     const authModal = document.getElementById('auth-modal');
@@ -432,12 +453,6 @@ document.addEventListener('DOMContentLoaded', function() {
       closeAuthModal();
     }
   });
-  window.onclick = function(event) {
-    const authModal = document.getElementById('auth-modal');
-    if (event.target === authModal) {
-      closeAuthModal();
-    }
-  };
   // Restore user info in header if logged in
   const token = localStorage.getItem('token');
   const name = localStorage.getItem('name');
