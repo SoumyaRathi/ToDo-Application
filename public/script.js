@@ -43,8 +43,29 @@ function fetchAndRenderTodos() {
     .catch(err => alert(err.message));
 }
 
+// Stable sort: dueDate ascending (YYYY-MM-DD compares lexicographically), missing dueDate last.
+function sortByDueDate(todos) {
+  return todos
+    .map((todo, index) => ({ todo, index }))
+    .sort((a, b) => {
+      const da = a.todo.dueDate || '';
+      const db = b.todo.dueDate || '';
+      if (da && db) {
+        if (da < db) return -1;
+        if (da > db) return 1;
+      } else if (da) {
+        return -1;
+      } else if (db) {
+        return 1;
+      }
+      return a.index - b.index;
+    })
+    .map(item => item.todo);
+}
+
 function renderTodos(data) {
   setLoading(false);
+  if (currentSort === 'dueDate' && Array.isArray(data)) data = sortByDueDate(data);
   currentTodos = data;
   const outputContainer = document.querySelector('.outputData');
   outputContainer.innerHTML = '';
@@ -67,6 +88,13 @@ function renderTodos(data) {
     const desc = document.createElement('p');
     desc.id = 'desc';
     desc.textContent = element.description;
+    // Due date (rendered as the stored YYYY-MM-DD string; no Date conversion)
+    let dueDateEl = null;
+    if (element.dueDate) {
+      dueDateEl = document.createElement('div');
+      dueDateEl.className = 'todoDueDate';
+      dueDateEl.textContent = `Due: ${element.dueDate}`;
+    }
     // Timestamps
     const timestamps = document.createElement('div');
     timestamps.className = 'todo-timestamp';
@@ -91,7 +119,9 @@ function renderTodos(data) {
     toggleBtn.onclick = () => toggleComplete(element.id);
     actions.append(editBtn, deleteBtn, toggleBtn);
     // Assemble card
-    card.append(badge, title, desc, timestamps, actions);
+    card.append(badge, title, desc);
+    if (dueDateEl) card.append(dueDateEl);
+    card.append(timestamps, actions);
     document.querySelector('.outputData').appendChild(card);
   });
   updateFilterSortFeedback();
@@ -104,6 +134,7 @@ function openCreateModal() {
   document.getElementById('save-edit-btn').textContent = 'Add';
   document.getElementById('edit-title').value = '';
   document.getElementById('edit-desc').value = '';
+  document.getElementById('edit-dueDate').value = '';
   document.getElementById('edit-completed').checked = false;
   document.getElementById('completed-checkbox-field').style.display = 'none';
   const modal = document.getElementById('edit-modal');
@@ -119,6 +150,7 @@ function openEditModal(todo) {
   document.getElementById('save-edit-btn').textContent = 'Save';
   document.getElementById('edit-title').value = todo.title;
   document.getElementById('edit-desc').value = todo.description;
+  document.getElementById('edit-dueDate').value = todo.dueDate || '';
   document.getElementById('edit-completed').checked = todo.completed;
   document.getElementById('completed-checkbox-field').style.display = '';
   const modal = document.getElementById('edit-modal');
@@ -259,13 +291,21 @@ document.addEventListener('DOMContentLoaded', function() {
       // Optionally show a message in the UI, but do not use alert
       return;
     }
+    const dueDateInput = document.getElementById('edit-dueDate');
+    const dueDate = dueDateInput.value;
+    if (dueDate !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
+      dueDateInput.setCustomValidity('Enter a valid date in YYYY-MM-DD format.');
+      dueDateInput.reportValidity();
+      dueDateInput.setCustomValidity('');
+      return;
+    }
     setLoading(true);
     if (isEditMode && editingTodoId) {
-      // Update
+      // Update (null clears the due date)
       fetchWithAuth(`${API_BASE}/todos/${editingTodoId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, completed })
+        body: JSON.stringify({ title, description, completed, dueDate: dueDate || null })
       })
         .then(async resp => {
           if (!resp.ok) return;
@@ -281,10 +321,12 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(err => { console.error(err); });
     } else {
       // Create
+      const createPayload = { title, description, completed: false };
+      if (dueDate) createPayload.dueDate = dueDate;
       fetchWithAuth(`${API_BASE}/todos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, completed: false })
+        body: JSON.stringify(createPayload)
       })
         .then(async resp => {
           if (!resp.ok) return;

@@ -35,6 +35,7 @@
         <option value="createdAt">Sort by Created</option>
         <option value="updatedAt">Sort by Updated</option>
         <option value="title">Sort by Title</option>
+        <option value="dueDate">Sort by Due Date</option>
       </select>
       <button id="clear-filters-btn" class="icon-btn" title="Clear Filters"><span class="material-icons">filter_alt_off</span></button>
     </section>
@@ -58,6 +59,11 @@
         <div class="input-field">
           <textarea id="edit-desc" placeholder=" " required rows="3"></textarea>
           <label for="edit-desc">Description</label>
+        </div>
+        <div class="input-field">
+          <input type="date" id="edit-dueDate" placeholder=" " />
+          <label for="edit-dueDate">Due Date</label>
+          <small class="fieldHint">Format: YYYY-MM-DD</small>
         </div>
         <div class="input-field" id="completed-checkbox-field" style="display:none;">
           <label for="edit-completed">Completed</label>
