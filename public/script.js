@@ -67,6 +67,13 @@ function renderTodos(data) {
     const desc = document.createElement('p');
     desc.id = 'desc';
     desc.textContent = element.description;
+    // Due date (rendered as the stored YYYY-MM-DD string; no Date conversion)
+    let dueDateEl = null;
+    if (element.dueDate) {
+      dueDateEl = document.createElement('div');
+      dueDateEl.className = 'todoDueDate';
+      dueDateEl.textContent = `Due: ${element.dueDate}`;
+    }
     // Timestamps
     const timestamps = document.createElement('div');
     timestamps.className = 'todo-timestamp';
@@ -91,7 +98,9 @@ function renderTodos(data) {
     toggleBtn.onclick = () => toggleComplete(element.id);
     actions.append(editBtn, deleteBtn, toggleBtn);
     // Assemble card
-    card.append(badge, title, desc, timestamps, actions);
+    card.append(badge, title, desc);
+    if (dueDateEl) card.append(dueDateEl);
+    card.append(timestamps, actions);
     document.querySelector('.outputData').appendChild(card);
   });
   updateFilterSortFeedback();
