@@ -281,7 +281,7 @@ html, body {
   flex-direction: column;
   padding: 18px 0 8px 0;
 }
-.input-field input[type="text"], .input-field input[type="password"], .input-field input[type="email"], .input-field input[type="date"], .input-field textarea {
+.input-field input[type="text"], .input-field input[type="password"], .input-field input[type="email"], .input-field textarea {
   background: rgba(255,255,255,0.18);
   border: 1px solid #a1c4fd;
   border-radius: 10px;
@@ -294,7 +294,7 @@ html, body {
   transition: border 0.2s, box-shadow 0.2s, background 0.2s;
   resize: vertical;
 }
-.input-field input[type="text"]:focus, .input-field input[type="password"]:focus, .input-field input[type="email"]:focus, .input-field input[type="date"]:focus, .input-field textarea:focus {
+.input-field input[type="text"]:focus, .input-field input[type="password"]:focus, .input-field input[type="email"]:focus, .input-field textarea:focus {
   border: 1px solid #5b6ee1;
   background: rgba(255,255,255,0.32);
   box-shadow: 0 4px 16px 0 rgba(91,110,225,0.13);
@@ -332,7 +332,6 @@ html, body {
 .input-field input[type="email"]::placeholder {
   color: transparent;
 }
-.input-field input[type="date"] + label,
 .input-field textarea:focus + label,
 .input-field textarea:not(:placeholder-shown) + label {
   top: -0.7em;
@@ -345,10 +344,6 @@ html, body {
   font-weight: 600;
 }
 
-.input-field input[type="date"] {
-  width: 100%;
-  box-sizing: border-box;
-}
 .input-hint {
   margin-top: 0.35em;
   padding-left: 0.4em;
