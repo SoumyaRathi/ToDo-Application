@@ -43,8 +43,29 @@ function fetchAndRenderTodos() {
     .catch(err => alert(err.message));
 }
 
+// Stable sort: dueDate ascending (YYYY-MM-DD compares lexicographically), missing dueDate last.
+function sortByDueDate(todos) {
+  return todos
+    .map((todo, index) => ({ todo, index }))
+    .sort((a, b) => {
+      const da = a.todo.dueDate || '';
+      const db = b.todo.dueDate || '';
+      if (da && db) {
+        if (da < db) return -1;
+        if (da > db) return 1;
+      } else if (da) {
+        return -1;
+      } else if (db) {
+        return 1;
+      }
+      return a.index - b.index;
+    })
+    .map(item => item.todo);
+}
+
 function renderTodos(data) {
   setLoading(false);
+  if (currentSort === 'dueDate' && Array.isArray(data)) data = sortByDueDate(data);
   currentTodos = data;
   const outputContainer = document.querySelector('.outputData');
   outputContainer.innerHTML = '';
