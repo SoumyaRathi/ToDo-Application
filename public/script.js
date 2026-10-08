@@ -28,21 +28,6 @@ function setLoading(loading) {
   }
 }
 
-function fetchAndRenderTodos() {
-  if (!checkAuth()) return;
-  setLoading(true);
-  let url = `${API_BASE}/todos?filter=${currentFilter !== 'all' ? currentFilter : ''}&sort=${currentSort}`;
-  if (currentSearch) url += `&search=${encodeURIComponent(currentSearch)}`;
-  fetchWithAuth(url)
-    .then(resp => {
-      if (resp.status === 401) { clearAuth(); showAuthModal(false); return []; }
-      console.log(resp);
-      return resp.json();
-    })
-    .then(renderTodos)
-    .catch(err => alert(err.message));
-}
-
 function renderTodos(data) {
   setLoading(false);
   currentTodos = data;
@@ -346,12 +331,6 @@ document.addEventListener('DOMContentLoaded', function() {
       closeEditModal();
     }
   });
-  window.onclick = function(event) {
-    const modal = document.getElementById('edit-modal');
-    if (event.target === modal) {
-      closeEditModal();
-    }
-  };
   document.getElementById('search-input').oninput = function(e) {
     currentSearch = e.target.value;
     fetchAndRenderTodos();
@@ -453,12 +432,14 @@ document.addEventListener('DOMContentLoaded', function() {
       });
   };
   // Close auth modal on outside click
-  window.onclick = function(event) {
+  window.addEventListener('click', function(event) {
     const modal = document.getElementById('edit-modal');
     const authModal = document.getElementById('auth-modal');
-    if (event.target === modal) closeEditModal();
-    if (event.target === authModal) closeAuthModal();
-  };
+    // The full-screen .modal-overlay covers each modal, so it is the real click target for the backdrop
+    const isBackdrop = m => event.target === m || (event.target.classList.contains('modal-overlay') && event.target.parentNode === m);
+    if (isBackdrop(modal)) closeEditModal();
+    if (isBackdrop(authModal)) closeAuthModal();
+  });
   window.addEventListener('keydown', function(e) {
     const modal = document.getElementById('edit-modal');
     const authModal = document.getElementById('auth-modal');
@@ -472,12 +453,6 @@ document.addEventListener('DOMContentLoaded', function() {
       closeAuthModal();
     }
   });
-  window.onclick = function(event) {
-    const authModal = document.getElementById('auth-modal');
-    if (event.target === authModal) {
-      closeAuthModal();
-    }
-  };
   // Restore user info in header if logged in
   const token = localStorage.getItem('token');
   const name = localStorage.getItem('name');
