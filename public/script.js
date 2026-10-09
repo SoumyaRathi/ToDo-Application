@@ -54,6 +54,14 @@ function renderTodos(data) {
     const today = todayString();
     data = data.filter(t => t.dueDate && t.dueDate < today && !t.completed);
   }
+  if (currentSort === 'dueDate') {
+    data = [...data].sort((a, b) => {
+      if (a.dueDate && b.dueDate) return a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : a.id - b.id;
+      if (a.dueDate) return -1;
+      if (b.dueDate) return 1;
+      return a.id - b.id;
+    });
+  }
   currentTodos = data;
   const outputContainer = document.querySelector('.outputData');
   outputContainer.innerHTML = '';
@@ -274,7 +282,8 @@ document.addEventListener('DOMContentLoaded', function() {
     e.preventDefault();
     const title = document.getElementById('edit-title').value;
     const description = document.getElementById('edit-desc').value;
-    const dueDate = document.getElementById('edit-dueDate').value;
+    const dueDateRaw = document.getElementById('edit-dueDate').value;
+    const dueDate = dueDateRaw ? dueDateRaw : null;
     const completed = document.getElementById('edit-completed').checked;
     if (!title || !description) {
       // Optionally show a message in the UI, but do not use alert
