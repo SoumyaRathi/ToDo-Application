@@ -43,8 +43,25 @@ function fetchAndRenderTodos() {
     .catch(err => alert(err.message));
 }
 
+function todayString() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function renderTodos(data) {
   setLoading(false);
+  if (document.getElementById('overdue-filter').checked) {
+    const today = todayString();
+    data = data.filter(t => t.dueDate && t.dueDate < today && !t.completed);
+  }
+  if (currentSort === 'dueDate') {
+    data = [...data].sort((a, b) => {
+      if (a.dueDate && b.dueDate) return a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : a.id - b.id;
+      if (a.dueDate) return -1;
+      if (b.dueDate) return 1;
+      return a.id - b.id;
+    });
+  }
   currentTodos = data;
   const outputContainer = document.querySelector('.outputData');
   outputContainer.innerHTML = '';
@@ -67,6 +84,13 @@ function renderTodos(data) {
     const desc = document.createElement('p');
     desc.id = 'desc';
     desc.textContent = element.description;
+    // Due date (only when present)
+    let dueDate = null;
+    if (element.dueDate) {
+      dueDate = document.createElement('div');
+      dueDate.className = 'todo-dueDate';
+      dueDate.textContent = `Due: ${element.dueDate}`;
+    }
     // Timestamps
     const timestamps = document.createElement('div');
     timestamps.className = 'todo-timestamp';
@@ -91,7 +115,9 @@ function renderTodos(data) {
     toggleBtn.onclick = () => toggleComplete(element.id);
     actions.append(editBtn, deleteBtn, toggleBtn);
     // Assemble card
-    card.append(badge, title, desc, timestamps, actions);
+    card.append(badge, title, desc);
+    if (dueDate) card.append(dueDate);
+    card.append(timestamps, actions);
     document.querySelector('.outputData').appendChild(card);
   });
   updateFilterSortFeedback();
@@ -104,6 +130,7 @@ function openCreateModal() {
   document.getElementById('save-edit-btn').textContent = 'Add';
   document.getElementById('edit-title').value = '';
   document.getElementById('edit-desc').value = '';
+  document.getElementById('edit-dueDate').value = '';
   document.getElementById('edit-completed').checked = false;
   document.getElementById('completed-checkbox-field').style.display = 'none';
   const modal = document.getElementById('edit-modal');
@@ -119,6 +146,7 @@ function openEditModal(todo) {
   document.getElementById('save-edit-btn').textContent = 'Save';
   document.getElementById('edit-title').value = todo.title;
   document.getElementById('edit-desc').value = todo.description;
+  document.getElementById('edit-dueDate').value = todo.dueDate || '';
   document.getElementById('edit-completed').checked = todo.completed;
   document.getElementById('completed-checkbox-field').style.display = '';
   const modal = document.getElementById('edit-modal');
@@ -254,6 +282,8 @@ document.addEventListener('DOMContentLoaded', function() {
     e.preventDefault();
     const title = document.getElementById('edit-title').value;
     const description = document.getElementById('edit-desc').value;
+    const dueDateRaw = document.getElementById('edit-dueDate').value;
+    const dueDate = dueDateRaw ? dueDateRaw : null;
     const completed = document.getElementById('edit-completed').checked;
     if (!title || !description) {
       // Optionally show a message in the UI, but do not use alert
@@ -265,7 +295,7 @@ document.addEventListener('DOMContentLoaded', function() {
       fetchWithAuth(`${API_BASE}/todos/${editingTodoId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, completed })
+        body: JSON.stringify({ title, description, dueDate, completed })
       })
         .then(async resp => {
           if (!resp.ok) return;
@@ -284,7 +314,7 @@ document.addEventListener('DOMContentLoaded', function() {
       fetchWithAuth(`${API_BASE}/todos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, completed: false })
+        body: JSON.stringify({ title, description, dueDate, completed: false })
       })
         .then(async resp => {
           if (!resp.ok) return;
@@ -324,6 +354,7 @@ document.addEventListener('DOMContentLoaded', function() {
     currentSort = e.target.value;
     fetchAndRenderTodos();
   };
+  document.getElementById('overdue-filter').onchange = fetchAndRenderTodos;
   // Clear search button
   const searchInput = document.getElementById('search-input');
   const clearBtn = document.createElement('button');
@@ -346,6 +377,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('search-input').value = '';
     document.getElementById('filter-select').value = 'all';
     document.getElementById('sort-select').value = 'createdAt';
+    document.getElementById('overdue-filter').checked = false;
     fetchAndRenderTodos();
   };
   // Initial load
