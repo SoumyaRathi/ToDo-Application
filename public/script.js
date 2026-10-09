@@ -43,8 +43,17 @@ function fetchAndRenderTodos() {
     .catch(err => alert(err.message));
 }
 
+function todayString() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function renderTodos(data) {
   setLoading(false);
+  if (document.getElementById('overdue-filter').checked) {
+    const today = todayString();
+    data = data.filter(t => t.dueDate && t.dueDate < today && !t.completed);
+  }
   currentTodos = data;
   const outputContainer = document.querySelector('.outputData');
   outputContainer.innerHTML = '';
@@ -67,6 +76,13 @@ function renderTodos(data) {
     const desc = document.createElement('p');
     desc.id = 'desc';
     desc.textContent = element.description;
+    // Due date (only when present)
+    let dueDate = null;
+    if (element.dueDate) {
+      dueDate = document.createElement('div');
+      dueDate.className = 'todo-dueDate';
+      dueDate.textContent = `Due: ${element.dueDate}`;
+    }
     // Timestamps
     const timestamps = document.createElement('div');
     timestamps.className = 'todo-timestamp';
@@ -91,7 +107,9 @@ function renderTodos(data) {
     toggleBtn.onclick = () => toggleComplete(element.id);
     actions.append(editBtn, deleteBtn, toggleBtn);
     // Assemble card
-    card.append(badge, title, desc, timestamps, actions);
+    card.append(badge, title, desc);
+    if (dueDate) card.append(dueDate);
+    card.append(timestamps, actions);
     document.querySelector('.outputData').appendChild(card);
   });
   updateFilterSortFeedback();
@@ -327,6 +345,7 @@ document.addEventListener('DOMContentLoaded', function() {
     currentSort = e.target.value;
     fetchAndRenderTodos();
   };
+  document.getElementById('overdue-filter').onchange = fetchAndRenderTodos;
   // Clear search button
   const searchInput = document.getElementById('search-input');
   const clearBtn = document.createElement('button');
@@ -349,6 +368,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('search-input').value = '';
     document.getElementById('filter-select').value = 'all';
     document.getElementById('sort-select').value = 'createdAt';
+    document.getElementById('overdue-filter').checked = false;
     fetchAndRenderTodos();
   };
   // Initial load
