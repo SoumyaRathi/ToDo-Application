@@ -17,6 +17,7 @@ let currentFilter = 'all';
 let currentSort = 'createdAt';
 let currentSearch = '';
 let editingTodoId = null;
+let editingOriginalDueDate = '';
 let isLoading = false;
 let isEditMode = false;
 
@@ -67,6 +68,28 @@ function renderTodos(data) {
     const desc = document.createElement('p');
     desc.id = 'desc';
     desc.textContent = element.description;
+    // Due date
+    let dueLine = null;
+    if (element.dueDate) {
+      dueLine = document.createElement('div');
+      dueLine.className = 'todoDueDate';
+      dueLine.textContent = `Due: ${element.dueDate}`;
+      if (!element.completed) {
+        const today = new Date().toISOString().slice(0, 10);
+        const dueBadge = document.createElement('span');
+        if (element.dueDate < today) {
+          dueBadge.className = 'dueBadge dueBadge--overdue';
+          dueBadge.textContent = 'Overdue';
+        } else if (element.dueDate === today) {
+          dueBadge.className = 'dueBadge dueBadge--due-today';
+          dueBadge.textContent = 'Due today';
+        } else {
+          dueBadge.className = 'dueBadge dueBadge--upcoming';
+          dueBadge.textContent = 'Upcoming';
+        }
+        dueLine.append(' ', dueBadge);
+      }
+    }
     // Timestamps
     const timestamps = document.createElement('div');
     timestamps.className = 'todo-timestamp';
@@ -91,7 +114,9 @@ function renderTodos(data) {
     toggleBtn.onclick = () => toggleComplete(element.id);
     actions.append(editBtn, deleteBtn, toggleBtn);
     // Assemble card
-    card.append(badge, title, desc, timestamps, actions);
+    card.append(badge, title, desc);
+    if (dueLine) card.append(dueLine);
+    card.append(timestamps, actions);
     document.querySelector('.outputData').appendChild(card);
   });
   updateFilterSortFeedback();
@@ -100,10 +125,13 @@ function renderTodos(data) {
 function openCreateModal() {
   isEditMode = false;
   editingTodoId = null;
+  editingOriginalDueDate = '';
   document.getElementById('modal-title').textContent = 'Add To-Do';
   document.getElementById('save-edit-btn').textContent = 'Add';
   document.getElementById('edit-title').value = '';
   document.getElementById('edit-desc').value = '';
+  document.getElementById('edit-dueDate').value = '';
+  document.getElementById('dueDate-error').textContent = '';
   document.getElementById('edit-completed').checked = false;
   document.getElementById('completed-checkbox-field').style.display = 'none';
   const modal = document.getElementById('edit-modal');
@@ -115,10 +143,13 @@ function openCreateModal() {
 function openEditModal(todo) {
   isEditMode = true;
   editingTodoId = todo.id;
+  editingOriginalDueDate = todo.dueDate || '';
   document.getElementById('modal-title').textContent = 'Edit To-Do';
   document.getElementById('save-edit-btn').textContent = 'Save';
   document.getElementById('edit-title').value = todo.title;
   document.getElementById('edit-desc').value = todo.description;
+  document.getElementById('edit-dueDate').value = todo.dueDate || '';
+  document.getElementById('dueDate-error').textContent = '';
   document.getElementById('edit-completed').checked = todo.completed;
   document.getElementById('completed-checkbox-field').style.display = '';
   const modal = document.getElementById('edit-modal');
@@ -255,17 +286,27 @@ document.addEventListener('DOMContentLoaded', function() {
     const title = document.getElementById('edit-title').value;
     const description = document.getElementById('edit-desc').value;
     const completed = document.getElementById('edit-completed').checked;
+    const dueDate = document.getElementById('edit-dueDate').value;
+    const dueDateError = document.getElementById('dueDate-error');
     if (!title || !description) {
       // Optionally show a message in the UI, but do not use alert
       return;
     }
+    if (dueDate !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
+      dueDateError.textContent = 'Due date must be in YYYY-MM-DD format.';
+      setLoading(false);
+      return;
+    }
+    dueDateError.textContent = '';
     setLoading(true);
     if (isEditMode && editingTodoId) {
       // Update
+      const updateBody = { title, description, completed };
+      if (dueDate !== editingOriginalDueDate) updateBody.dueDate = dueDate || null;
       fetchWithAuth(`${API_BASE}/todos/${editingTodoId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, completed })
+        body: JSON.stringify(updateBody)
       })
         .then(async resp => {
           if (!resp.ok) return;
@@ -284,7 +325,7 @@ document.addEventListener('DOMContentLoaded', function() {
       fetchWithAuth(`${API_BASE}/todos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, completed: false })
+        body: JSON.stringify(dueDate ? { title, description, completed: false, dueDate } : { title, description, completed: false })
       })
         .then(async resp => {
           if (!resp.ok) return;
