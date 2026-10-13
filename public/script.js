@@ -67,6 +67,28 @@ function renderTodos(data) {
     const desc = document.createElement('p');
     desc.id = 'desc';
     desc.textContent = element.description;
+    // Due date
+    let dueLine = null;
+    if (element.dueDate) {
+      dueLine = document.createElement('div');
+      dueLine.className = 'todoDueDate';
+      dueLine.textContent = `Due: ${element.dueDate}`;
+      if (!element.completed) {
+        const today = new Date().toISOString().slice(0, 10);
+        const dueBadge = document.createElement('span');
+        if (element.dueDate < today) {
+          dueBadge.className = 'dueBadge dueBadge--overdue';
+          dueBadge.textContent = 'Overdue';
+        } else if (element.dueDate === today) {
+          dueBadge.className = 'dueBadge dueBadge--due-today';
+          dueBadge.textContent = 'Due today';
+        } else {
+          dueBadge.className = 'dueBadge dueBadge--upcoming';
+          dueBadge.textContent = 'Upcoming';
+        }
+        dueLine.append(' ', dueBadge);
+      }
+    }
     // Timestamps
     const timestamps = document.createElement('div');
     timestamps.className = 'todo-timestamp';
@@ -91,7 +113,9 @@ function renderTodos(data) {
     toggleBtn.onclick = () => toggleComplete(element.id);
     actions.append(editBtn, deleteBtn, toggleBtn);
     // Assemble card
-    card.append(badge, title, desc, timestamps, actions);
+    card.append(badge, title, desc);
+    if (dueLine) card.append(dueLine);
+    card.append(timestamps, actions);
     document.querySelector('.outputData').appendChild(card);
   });
   updateFilterSortFeedback();
