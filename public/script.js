@@ -17,6 +17,7 @@ let currentFilter = 'all';
 let currentSort = 'createdAt';
 let currentSearch = '';
 let editingTodoId = null;
+let editingOriginalDueDate = '';
 let isLoading = false;
 let isEditMode = false;
 
@@ -124,6 +125,7 @@ function renderTodos(data) {
 function openCreateModal() {
   isEditMode = false;
   editingTodoId = null;
+  editingOriginalDueDate = '';
   document.getElementById('modal-title').textContent = 'Add To-Do';
   document.getElementById('save-edit-btn').textContent = 'Add';
   document.getElementById('edit-title').value = '';
@@ -141,6 +143,7 @@ function openCreateModal() {
 function openEditModal(todo) {
   isEditMode = true;
   editingTodoId = todo.id;
+  editingOriginalDueDate = todo.dueDate || '';
   document.getElementById('modal-title').textContent = 'Edit To-Do';
   document.getElementById('save-edit-btn').textContent = 'Save';
   document.getElementById('edit-title').value = todo.title;
@@ -298,10 +301,12 @@ document.addEventListener('DOMContentLoaded', function() {
     setLoading(true);
     if (isEditMode && editingTodoId) {
       // Update
+      const updateBody = { title, description, completed };
+      if (dueDate !== editingOriginalDueDate) updateBody.dueDate = dueDate || null;
       fetchWithAuth(`${API_BASE}/todos/${editingTodoId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, completed, dueDate: dueDate || null })
+        body: JSON.stringify(updateBody)
       })
         .then(async resp => {
           if (!resp.ok) return;
