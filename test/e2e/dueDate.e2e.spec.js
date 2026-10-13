@@ -10,14 +10,18 @@ test.afterAll(() => restoreData());
 
 test.beforeEach(async ({ page }) => {
   const email = uniqueEmail();
+  // showAuthModal() autofocuses a field via setTimeout(100ms); wait for each focus to land before typing.
   await page.goto('/');
   await expect(page.locator('#auth-modal')).toBeVisible();
+  await expect(page.locator('#auth-email')).toBeFocused();
   await page.click('#auth-toggle-link');
+  await expect(page.locator('#auth-name')).toBeFocused();
   await page.fill('#auth-name', 'QA User');
   await page.fill('#auth-email', email);
   await page.fill('#auth-password', PASSWORD);
   await page.click('#auth-submit-btn');
   await expect(page.locator('#auth-error')).toContainText('Signup successful');
+  await expect(page.locator('#auth-email')).toBeFocused();
   await page.fill('#auth-email', email);
   await page.fill('#auth-password', PASSWORD);
   await page.click('#auth-submit-btn');
@@ -27,9 +31,21 @@ test.beforeEach(async ({ page }) => {
 
 const card = (page, title) => page.locator('.outputData .output', { hasText: title });
 
+// The app focuses #edit-title via setTimeout(100ms) after opening the modal. Wait for that focus to land
+// before typing, otherwise it can steal focus mid-fill and put text into the wrong field.
+async function waitForModalReady(page) {
+  await expect(page.locator('#edit-modal')).toBeVisible();
+  await expect(page.locator('#edit-title')).toBeFocused();
+}
+
+async function openEditModal(page, title) {
+  await card(page, title).locator('.todo-btn.edit').click();
+  await waitForModalReady(page);
+}
+
 async function openAddModal(page, { title, dueDate }) {
   await page.click('#add-todo-btn');
-  await expect(page.locator('#edit-modal')).toBeVisible();
+  await waitForModalReady(page);
   await page.fill('#edit-title', title);
   await page.fill('#edit-desc', 'description');
   if (dueDate !== undefined) await page.fill('#edit-dueDate', dueDate);
@@ -67,15 +83,14 @@ test('E2E-03 invalid due date 12/31/2030 shows inline error, sends no request, a
 
 test('E2E-04 edit modal pre-populates the existing due date', async ({ page }) => {
   await createTodo(page, { title: 'e2e-prefill', dueDate: '2030-12-31' });
-  await card(page, 'e2e-prefill').locator('.todo-btn.edit').click();
-  await expect(page.locator('#edit-modal')).toBeVisible();
+  await openEditModal(page, 'e2e-prefill');
   await expect(page.locator('#edit-dueDate')).toHaveValue('2030-12-31');
 });
 
 test('E2E-05 clearing the due date on edit removes the due line', async ({ page }) => {
   await createTodo(page, { title: 'e2e-clear', dueDate: '2030-12-31' });
   await expect(card(page, 'e2e-clear').locator('.todoDueDate')).toBeVisible();
-  await card(page, 'e2e-clear').locator('.todo-btn.edit').click();
+  await openEditModal(page, 'e2e-clear');
   await page.fill('#edit-dueDate', '');
   await page.click('#save-edit-btn');
   await expect(page.locator('#edit-modal')).toBeHidden();
