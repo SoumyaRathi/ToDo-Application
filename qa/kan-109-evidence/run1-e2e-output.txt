@@ -1,0 +1,65 @@
+
+> 02-nodejs@1.0.0 test:e2e
+> playwright test --project=chromium
+
+
+Running 10 tests using 1 worker
+
+  ✘   1 [chromium] › test\e2e\dueDate.e2e.spec.js:45:1 › E2E-01 create with due date 2030-12-31 shows "Due: 2030-12-31" on the card (8.0s)
+  ✓   2 [chromium] › test\e2e\dueDate.e2e.spec.js:50:1 › E2E-02 create with empty due date renders no due line (2.5s)
+  ✓   3 [chromium] › test\e2e\dueDate.e2e.spec.js:55:1 › E2E-03 invalid due date 12/31/2030 shows inline error, sends no request, adds no todo (2.7s)
+  ✓   4 [chromium] › test\e2e\dueDate.e2e.spec.js:68:1 › E2E-04 edit modal pre-populates the existing due date (3.6s)
+  ✓   5 [chromium] › test\e2e\dueDate.e2e.spec.js:75:1 › E2E-05 clearing the due date on edit removes the due line (4.7s)
+  ✓   6 [chromium] › test\e2e\dueDate.e2e.spec.js:85:1 › E2E-06 past due date on an active todo shows the Overdue badge (3.1s)
+  ✓   7 [chromium] › test\e2e\dueDate.e2e.spec.js:90:1 › E2E-07 today as due date shows the Due today badge (2.8s)
+  ✓   8 [chromium] › test\e2e\dueDate.e2e.spec.js:95:1 › E2E-08 future due date shows the Upcoming badge (2.7s)
+  ✓   9 [chromium] › test\e2e\dueDate.e2e.spec.js:100:1 › E2E-09 todo without a due date shows no badge and no due line (2.6s)
+  ✓  10 [chromium] › test\e2e\dueDate.e2e.spec.js:107:1 › E2E-10 selecting "Due date" sort requests GET /todos?sort=dueDate and orders by due date (3.8s)
+
+
+  1) [chromium] › test\e2e\dueDate.e2e.spec.js:45:1 › E2E-01 create with due date 2030-12-31 shows "Due: 2030-12-31" on the card 
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('.outputData .output').filter({ hasText: 'e2e-with-due' }).locator('.todoDueDate')
+    Expected substring: "Due: 2030-12-31"
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toContainText" locator('.outputData .output').filter({ hasText: 'e2e-with-due' }).locator('.todoDueDate') with timeout 5000ms
+      - waiting for locator('.outputData .output').filter({ hasText: 'e2e-with-due' }).locator('.todoDueDate')
+
+
+      45 | test('E2E-01 create with due date 2030-12-31 shows "Due: 2030-12-31" on the card', async ({ page }) => {
+      46 |   await createTodo(page, { title: 'e2e-with-due', dueDate: '2030-12-31' });
+    > 47 |   await expect(card(page, 'e2e-with-due').locator('.todoDueDate')).toContainText('Due: 2030-12-31');
+         |                                                                    ^
+      48 | });
+      49 |
+      50 | test('E2E-02 create with empty due date renders no due line', async ({ page }) => {
+        at C:\CodemieProject\ToDo-Application\test\e2e\dueDate.e2e.spec.js:47:68
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\kan-109\dueDate.e2e-E2E-01-create--613e8--Due-2030-12-31-on-the-card-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\kan-109\dueDate.e2e-E2E-01-create--613e8--Due-2030-12-31-on-the-card-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\kan-109\dueDate.e2e-E2E-01-create--613e8--Due-2030-12-31-on-the-card-chromium\error-context.md
+
+    Error Context: test-results\kan-109\dueDate.e2e-E2E-01-create--613e8--Due-2030-12-31-on-the-card-chromium\error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\kan-109\dueDate.e2e-E2E-01-create--613e8--Due-2030-12-31-on-the-card-chromium\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\kan-109\dueDate.e2e-E2E-01-create--613e8--Due-2030-12-31-on-the-card-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › test\e2e\dueDate.e2e.spec.js:45:1 › E2E-01 create with due date 2030-12-31 shows "Due: 2030-12-31" on the card 
+  9 passed (40.5s)
