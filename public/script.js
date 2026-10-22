@@ -19,6 +19,7 @@ let currentSearch = '';
 let editingTodoId = null;
 let isLoading = false;
 let isEditMode = false;
+let initialDueDate = '';
 
 function setLoading(loading) {
   isLoading = loading;
@@ -28,23 +29,15 @@ function setLoading(loading) {
   }
 }
 
-function fetchAndRenderTodos() {
-  if (!checkAuth()) return;
-  setLoading(true);
-  let url = `${API_BASE}/todos?filter=${currentFilter !== 'all' ? currentFilter : ''}&sort=${currentSort}`;
-  if (currentSearch) url += `&search=${encodeURIComponent(currentSearch)}`;
-  fetchWithAuth(url)
-    .then(resp => {
-      if (resp.status === 401) { clearAuth(); showAuthModal(false); return []; }
-      console.log(resp);
-      return resp.json();
-    })
-    .then(renderTodos)
-    .catch(err => alert(err.message));
+function showTodoError(message) {
+  const el = document.getElementById('todo-error');
+  el.textContent = message;
+  el.style.display = message ? 'block' : 'none';
 }
 
 function renderTodos(data) {
   setLoading(false);
+  showTodoError('');
   currentTodos = data;
   const outputContainer = document.querySelector('.outputData');
   outputContainer.innerHTML = '';
@@ -71,6 +64,13 @@ function renderTodos(data) {
     const timestamps = document.createElement('div');
     timestamps.className = 'todo-timestamp';
     timestamps.textContent = `Created: ${new Date(element.createdAt).toLocaleString()} | Updated: ${new Date(element.updatedAt).toLocaleString()}`;
+    // Due date (omitted when not set)
+    let dueDateEl = null;
+    if (element.dueDate) {
+      dueDateEl = document.createElement('div');
+      dueDateEl.className = 'todo-due-date';
+      dueDateEl.textContent = `Due: ${element.dueDate}`;
+    }
     // Actions
     const actions = document.createElement('div');
     actions.className = 'todo-actions';
@@ -91,10 +91,31 @@ function renderTodos(data) {
     toggleBtn.onclick = () => toggleComplete(element.id);
     actions.append(editBtn, deleteBtn, toggleBtn);
     // Assemble card
-    card.append(badge, title, desc, timestamps, actions);
+    card.append(badge, title, desc);
+    if (dueDateEl) card.append(dueDateEl);
+    card.append(timestamps, actions);
     document.querySelector('.outputData').appendChild(card);
   });
   updateFilterSortFeedback();
+}
+
+function showDueDateError(message) {
+  const el = document.getElementById('dueDate-error');
+  el.textContent = message;
+  el.style.display = message ? 'block' : 'none';
+}
+
+function isValidDueDate(value) {
+  if (value === '') return true;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(value + 'T00:00:00Z');
+  return !isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+// Omit dueDate when unchanged; null (backend clears on null) only when explicitly emptied.
+function buildUpdatePayload(base, dueDate) {
+  if (dueDate === initialDueDate) return base;
+  return { ...base, dueDate: dueDate === '' ? null : dueDate };
 }
 
 function openCreateModal() {
@@ -104,6 +125,9 @@ function openCreateModal() {
   document.getElementById('save-edit-btn').textContent = 'Add';
   document.getElementById('edit-title').value = '';
   document.getElementById('edit-desc').value = '';
+  initialDueDate = '';
+  document.getElementById('edit-dueDate').value = '';
+  showDueDateError('');
   document.getElementById('edit-completed').checked = false;
   document.getElementById('completed-checkbox-field').style.display = 'none';
   const modal = document.getElementById('edit-modal');
@@ -119,6 +143,9 @@ function openEditModal(todo) {
   document.getElementById('save-edit-btn').textContent = 'Save';
   document.getElementById('edit-title').value = todo.title;
   document.getElementById('edit-desc').value = todo.description;
+  initialDueDate = todo.dueDate || '';
+  document.getElementById('edit-dueDate').value = initialDueDate;
+  showDueDateError('');
   document.getElementById('edit-completed').checked = todo.completed;
   document.getElementById('completed-checkbox-field').style.display = '';
   const modal = document.getElementById('edit-modal');
@@ -228,11 +255,14 @@ function fetchAndRenderTodos() {
   fetchWithAuth(url)
     .then(resp => {
       if (resp.status === 401) { clearAuth(); showAuthModal(false); return []; }
-      console.log(resp);
+      if (!resp.ok) throw new Error('Failed to load todos.');
       return resp.json();
     })
     .then(renderTodos)
-    .catch(err => alert(err.message));
+    .catch(err => {
+      document.querySelector('.outputData').innerHTML = '';
+      showTodoError(err.message || 'Failed to load todos.');
+    });
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -247,6 +277,10 @@ document.addEventListener('DOMContentLoaded', function() {
   };
   document.getElementById('add-todo-btn').onclick = openCreateModal;
   document.getElementById('close-modal').onclick = closeEditModal;
+  document.getElementById('clear-dueDate-btn').onclick = function() {
+    document.getElementById('edit-dueDate').value = '';
+    showDueDateError('');
+  };
   // Remove the onclick handler for save-edit-btn
   document.getElementById('save-edit-btn').onclick = null;
   // Add onsubmit handler for todo-form
@@ -255,17 +289,23 @@ document.addEventListener('DOMContentLoaded', function() {
     const title = document.getElementById('edit-title').value;
     const description = document.getElementById('edit-desc').value;
     const completed = document.getElementById('edit-completed').checked;
+    const dueDate = document.getElementById('edit-dueDate').value;
     if (!title || !description) {
       // Optionally show a message in the UI, but do not use alert
       return;
     }
+    if (!isValidDueDate(dueDate)) {
+      showDueDateError('Please enter a valid due date (YYYY-MM-DD).');
+      return;
+    }
+    showDueDateError('');
     setLoading(true);
     if (isEditMode && editingTodoId) {
       // Update
       fetchWithAuth(`${API_BASE}/todos/${editingTodoId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, completed })
+        body: JSON.stringify(buildUpdatePayload({ title, description, completed }, dueDate))
       })
         .then(async resp => {
           if (!resp.ok) return;
@@ -284,7 +324,7 @@ document.addEventListener('DOMContentLoaded', function() {
       fetchWithAuth(`${API_BASE}/todos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, completed: false })
+        body: JSON.stringify(dueDate ? { title, description, completed: false, dueDate } : { title, description, completed: false })
       })
         .then(async resp => {
           if (!resp.ok) return;
