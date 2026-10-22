@@ -155,6 +155,12 @@ html, body {
   margin-top: 0.1em;
   line-height: 1.35;
 }
+.output .todo-due-date {
+  font-size: 0.95em;
+  font-weight: 600;
+  color: #5b6ee1;
+  margin-bottom: 0.3em;
+}
 .output .todo-timestamp {
   font-size: 0.85em;
   color: #bbb;
