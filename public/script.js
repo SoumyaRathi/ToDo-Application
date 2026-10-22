@@ -19,6 +19,7 @@ let currentSearch = '';
 let editingTodoId = null;
 let isLoading = false;
 let isEditMode = false;
+let initialDueDate = '';
 
 function setLoading(loading) {
   isLoading = loading;
@@ -28,23 +29,15 @@ function setLoading(loading) {
   }
 }
 
-function fetchAndRenderTodos() {
-  if (!checkAuth()) return;
-  setLoading(true);
-  let url = `${API_BASE}/todos?filter=${currentFilter !== 'all' ? currentFilter : ''}&sort=${currentSort}`;
-  if (currentSearch) url += `&search=${encodeURIComponent(currentSearch)}`;
-  fetchWithAuth(url)
-    .then(resp => {
-      if (resp.status === 401) { clearAuth(); showAuthModal(false); return []; }
-      console.log(resp);
-      return resp.json();
-    })
-    .then(renderTodos)
-    .catch(err => alert(err.message));
+function showTodoError(message) {
+  const el = document.getElementById('todo-error');
+  el.textContent = message;
+  el.style.display = message ? 'block' : 'none';
 }
 
 function renderTodos(data) {
   setLoading(false);
+  showTodoError('');
   currentTodos = data;
   const outputContainer = document.querySelector('.outputData');
   outputContainer.innerHTML = '';
@@ -119,6 +112,12 @@ function isValidDueDate(value) {
   return !isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
+// Omit dueDate when unchanged; null (backend clears on null) only when explicitly emptied.
+function buildUpdatePayload(base, dueDate) {
+  if (dueDate === initialDueDate) return base;
+  return { ...base, dueDate: dueDate === '' ? null : dueDate };
+}
+
 function openCreateModal() {
   isEditMode = false;
   editingTodoId = null;
@@ -126,6 +125,7 @@ function openCreateModal() {
   document.getElementById('save-edit-btn').textContent = 'Add';
   document.getElementById('edit-title').value = '';
   document.getElementById('edit-desc').value = '';
+  initialDueDate = '';
   document.getElementById('edit-dueDate').value = '';
   showDueDateError('');
   document.getElementById('edit-completed').checked = false;
@@ -143,7 +143,8 @@ function openEditModal(todo) {
   document.getElementById('save-edit-btn').textContent = 'Save';
   document.getElementById('edit-title').value = todo.title;
   document.getElementById('edit-desc').value = todo.description;
-  document.getElementById('edit-dueDate').value = todo.dueDate || '';
+  initialDueDate = todo.dueDate || '';
+  document.getElementById('edit-dueDate').value = initialDueDate;
   showDueDateError('');
   document.getElementById('edit-completed').checked = todo.completed;
   document.getElementById('completed-checkbox-field').style.display = '';
@@ -254,11 +255,14 @@ function fetchAndRenderTodos() {
   fetchWithAuth(url)
     .then(resp => {
       if (resp.status === 401) { clearAuth(); showAuthModal(false); return []; }
-      console.log(resp);
+      if (!resp.ok) throw new Error('Failed to load todos.');
       return resp.json();
     })
     .then(renderTodos)
-    .catch(err => alert(err.message));
+    .catch(err => {
+      document.querySelector('.outputData').innerHTML = '';
+      showTodoError(err.message || 'Failed to load todos.');
+    });
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -301,8 +305,7 @@ document.addEventListener('DOMContentLoaded', function() {
       fetchWithAuth(`${API_BASE}/todos/${editingTodoId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        // dueDate "" tells the backend to clear an existing due date
-        body: JSON.stringify({ title, description, completed, dueDate })
+        body: JSON.stringify(buildUpdatePayload({ title, description, completed }, dueDate))
       })
         .then(async resp => {
           if (!resp.ok) return;
