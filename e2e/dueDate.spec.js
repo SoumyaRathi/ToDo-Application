@@ -39,11 +39,14 @@ test.beforeAll(async ({ browser }) => {
   await page.goto('/');
   await expect(page.locator('#auth-modal')).toBeVisible();
   await page.click('#auth-toggle-link');
+  // showAuthModal() focuses its first field after ~100ms; wait for that so fill() is not interrupted.
+  await expect(page.locator('#auth-name')).toBeFocused();
   await page.fill('#auth-name', 'E2E Tester');
   await page.fill('#auth-email', email);
   await page.fill('#auth-password', 'pw12345');
   await page.click('#auth-form button[type=submit]');
   await expect(page.locator('#auth-error')).toContainText('Signup successful');
+  await expect(page.locator('#auth-email')).toBeFocused();
   await page.fill('#auth-email', email);
   await page.fill('#auth-password', 'pw12345');
   await page.click('#auth-form button[type=submit]');
