@@ -97,6 +97,19 @@ function renderTodos(data) {
   updateFilterSortFeedback();
 }
 
+function showDueDateError(message) {
+  const el = document.getElementById('dueDate-error');
+  el.textContent = message;
+  el.style.display = message ? 'block' : 'none';
+}
+
+function isValidDueDate(value) {
+  if (value === '') return true;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(value + 'T00:00:00Z');
+  return !isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
 function openCreateModal() {
   isEditMode = false;
   editingTodoId = null;
@@ -104,6 +117,8 @@ function openCreateModal() {
   document.getElementById('save-edit-btn').textContent = 'Add';
   document.getElementById('edit-title').value = '';
   document.getElementById('edit-desc').value = '';
+  document.getElementById('edit-dueDate').value = '';
+  showDueDateError('');
   document.getElementById('edit-completed').checked = false;
   document.getElementById('completed-checkbox-field').style.display = 'none';
   const modal = document.getElementById('edit-modal');
@@ -119,6 +134,8 @@ function openEditModal(todo) {
   document.getElementById('save-edit-btn').textContent = 'Save';
   document.getElementById('edit-title').value = todo.title;
   document.getElementById('edit-desc').value = todo.description;
+  document.getElementById('edit-dueDate').value = todo.dueDate || '';
+  showDueDateError('');
   document.getElementById('edit-completed').checked = todo.completed;
   document.getElementById('completed-checkbox-field').style.display = '';
   const modal = document.getElementById('edit-modal');
@@ -247,6 +264,10 @@ document.addEventListener('DOMContentLoaded', function() {
   };
   document.getElementById('add-todo-btn').onclick = openCreateModal;
   document.getElementById('close-modal').onclick = closeEditModal;
+  document.getElementById('clear-dueDate-btn').onclick = function() {
+    document.getElementById('edit-dueDate').value = '';
+    showDueDateError('');
+  };
   // Remove the onclick handler for save-edit-btn
   document.getElementById('save-edit-btn').onclick = null;
   // Add onsubmit handler for todo-form
@@ -255,17 +276,24 @@ document.addEventListener('DOMContentLoaded', function() {
     const title = document.getElementById('edit-title').value;
     const description = document.getElementById('edit-desc').value;
     const completed = document.getElementById('edit-completed').checked;
+    const dueDate = document.getElementById('edit-dueDate').value;
     if (!title || !description) {
       // Optionally show a message in the UI, but do not use alert
       return;
     }
+    if (!isValidDueDate(dueDate)) {
+      showDueDateError('Please enter a valid due date (YYYY-MM-DD).');
+      return;
+    }
+    showDueDateError('');
     setLoading(true);
     if (isEditMode && editingTodoId) {
       // Update
       fetchWithAuth(`${API_BASE}/todos/${editingTodoId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, completed })
+        // dueDate "" tells the backend to clear an existing due date
+        body: JSON.stringify({ title, description, completed, dueDate })
       })
         .then(async resp => {
           if (!resp.ok) return;
@@ -284,7 +312,7 @@ document.addEventListener('DOMContentLoaded', function() {
       fetchWithAuth(`${API_BASE}/todos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, completed: false })
+        body: JSON.stringify(dueDate ? { title, description, completed: false, dueDate } : { title, description, completed: false })
       })
         .then(async resp => {
           if (!resp.ok) return;
